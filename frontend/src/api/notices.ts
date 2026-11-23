@@ -9,6 +9,7 @@ import type {
   NoticeQuery,
 } from '@/types/notice'
 import { getDeadlineStatus } from '@/utils/date'
+import { sortNotices } from '@/utils/noticeSort'
 
 /** 默认使用 Mock；联调真实后端时在 .env 中设置 VITE_USE_MOCK=false */
 export const USE_MOCK = import.meta.env.VITE_USE_MOCK !== 'false'
@@ -65,7 +66,7 @@ function filterMock(query: NoticeQuery): NoticeItem[] {
 /** 获取通知列表 */
 export async function getNotices(query: NoticeQuery = {}): Promise<NoticeListResp> {
   if (USE_MOCK) {
-    const all = filterMock(query)
+    const all = sortNotices(filterMock(query), query.sort ?? 'deadline')
     const page = query.page ?? 1
     const pageSize = query.page_size ?? 10
     const start = (page - 1) * pageSize
@@ -83,6 +84,11 @@ export async function getNotices(query: NoticeQuery = {}): Promise<NoticeListRes
   if (query.deadline_status && query.deadline_status !== 'all') {
     params.deadline_status = query.deadline_status
   }
+  // 扩展参数：订阅来源过滤（逗号分隔），后端未实现时忽略即可
+  if (query.source_ids && query.source_ids.length > 0) {
+    params.source_ids = query.source_ids.join(',')
+  }
+  if (query.sort) params.sort = query.sort
   params.page = query.page ?? 1
   params.page_size = query.page_size ?? 10
   return (await request.get('/notices', { params })) as NoticeListResp

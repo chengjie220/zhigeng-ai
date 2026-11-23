@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
@@ -7,38 +8,118 @@ import NoticeCard from '@/components/NoticeCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
 import { getNotices } from '@/api/notices'
 import { getSources } from '@/api/sources'
-import type { DeadlineFilter, NoticeItem, SourceItem } from '@/types/notice'
+import type { DeadlineFilter, NoticeItem, NoticeSort, SourceItem } from '@/types/notice'
 import { getFavoriteIds, toggleFavorite as toggleFavStore } from '@/utils/favorites'
 import { getSelectedSourceIds } from '@/utils/sourcePrefs'
+
+const route = useRoute()
+const router = useRouter()
 
 const loading = ref(false)
 const error = ref('')
 const items = ref<NoticeItem[]>([])
 const total = ref(0)
-const page = ref(1)
 const pageSize = 10
 
-/** keyword：输入框实时值；appliedKeyword：点搜索/回车后的查询值 */
+/** keyword：输入框实时值；appliedKeyword：已生效的查询值（与 URL 的 q 同步） */
 const keyword = ref('')
 const appliedKeyword = ref('')
 const category = ref('')
 const sourceId = ref<number | ''>('')
 const deadlineStatus = ref<DeadlineFilter>('all')
+const sort = ref<NoticeSort>('deadline')
+const page = ref(1)
 
 const sources = ref<SourceItem[]>([])
 const favoriteIds = ref<number[]>(getFavoriteIds())
+/** 订阅过滤是否生效（null = 未设置过，展示全部来源） */
+const subscribedIds = ref<number[] | null>(getSelectedSourceIds())
+
+const sortOptions: { label: string; value: NoticeSort }[] = [
+  { label: '最近截止优先', value: 'deadline' },
+  { label: '最新发布优先', value: 'published' },
+]
+
+const hasActiveFilter = computed(
+  () =>
+    !!appliedKeyword.value ||
+    !!category.value ||
+    sourceId.value !== '' ||
+    deadlineStatus.value !== 'all',
+)
+
+/** 当前生效的筛选条件摘要，让用户清楚「为什么只看到这几条」 */
+const filterSummary = computed(() => {
+  const parts: string[] = []
+  if (appliedKeyword.value) parts.push(`关键词「${appliedKeyword.value}」`)
+  if (category.value) parts.push(category.value)
+  if (sourceId.value !== '') {
+    const hit = sources.value.find((s) => s.id === sourceId.value)
+    if (hit) parts.push(hit.name)
+  }
+  if (deadlineStatus.value === 'urgent') parts.push('7天内截止')
+  if (deadlineStatus.value === 'upcoming') parts.push('未截止')
+  if (deadlineStatus.value === 'expired') parts.push('已截止')
+  if (deadlineStatus.value === 'unknown') parts.push('截止待核实')
+  return parts.join(' · ')
+})
+
+/** 把 URL query 归一化成可比较的纯字符串对象 */
+function normalizedQuery(): Record<string, string> {
+  const result: Record<string, string> = {}
+  for (const [key, value] of Object.entries(route.query)) {
+    if (typeof value === 'string' && value !== '') result[key] = value
+  }
+  return result
+}
+
+/**
+ * 以当前 URL 为基础合并补丁后写回地址栏。
+ * 返回 false 表示 URL 没有变化（此时调用方需要自己触发一次加载）。
+ */
+function updateQuery(patch: Record<string, string | number | undefined>): boolean {
+  const before = normalizedQuery()
+  const next: Record<string, string> = { ...before }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined || value === '' || value === null) delete next[key]
+    else next[key] = String(value)
+  }
+  if (JSON.stringify(before) === JSON.stringify(next)) return false
+  router.replace({ query: next })
+  return true
+}
+
+/** 从 URL 读取筛选条件（刷新、分享、前进后退都会走这里） */
+function hydrateFromQuery() {
+  const q = route.query
+  const str = (v: unknown) => (typeof v === 'string' ? v : '')
+
+  appliedKeyword.value = str(q.q)
+  keyword.value = appliedKeyword.value
+  category.value = str(q.category)
+  const sid = Number(str(q.source_id))
+  sourceId.value = Number.isInteger(sid) && sid > 0 ? sid : ''
+  const ds = str(q.deadline_status)
+  const deadlineValues: DeadlineFilter[] = ['all', 'urgent', 'upcoming', 'expired', 'unknown']
+  deadlineStatus.value = deadlineValues.includes(ds as DeadlineFilter)
+    ? (ds as DeadlineFilter)
+    : 'all'
+  sort.value = str(q.sort) === 'published' ? 'published' : 'deadline'
+  const p = Number(str(q.page))
+  page.value = Number.isInteger(p) && p > 1 ? p : 1
+}
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    const subscribed = getSelectedSourceIds()
     const resp = await getNotices({
       q: appliedKeyword.value || undefined,
       category: category.value || undefined,
       source_id: sourceId.value === '' ? undefined : sourceId.value,
-      source_ids: subscribed ?? undefined,
+      source_ids: subscribedIds.value ?? undefined,
       deadline_status: deadlineStatus.value,
+      sort: sort.value,
       page: page.value,
       page_size: pageSize,
     })
@@ -51,15 +132,37 @@ async function load() {
   }
 }
 
+/** URL 变化 → 同步状态 → 拉数据（唯一的数据加载入口） */
+watch(
+  () => route.query,
+  () => {
+    hydrateFromQuery()
+    load()
+  },
+  { immediate: true },
+)
+
 function onSearch(value: string) {
+  keyword.value = value
   appliedKeyword.value = value
-  page.value = 1
-  load()
+  const changed = updateQuery({ q: value || undefined, page: undefined })
+  if (!changed) load()
 }
 
 function onFilterChange() {
-  page.value = 1
-  load()
+  const changed = updateQuery({
+    category: category.value || undefined,
+    source_id: sourceId.value === '' ? undefined : sourceId.value,
+    deadline_status: deadlineStatus.value === 'all' ? undefined : deadlineStatus.value,
+    page: undefined,
+  })
+  if (!changed) load()
+}
+
+function onSortChange(value: NoticeSort) {
+  sort.value = value
+  const changed = updateQuery({ sort: value === 'deadline' ? undefined : value, page: undefined })
+  if (!changed) load()
 }
 
 function resetFilters() {
@@ -69,12 +172,20 @@ function resetFilters() {
   sourceId.value = ''
   deadlineStatus.value = 'all'
   page.value = 1
-  load()
+  const changed = updateQuery({
+    q: undefined,
+    category: undefined,
+    source_id: undefined,
+    deadline_status: undefined,
+    page: undefined,
+  })
+  if (!changed) load()
 }
 
 function onPageChange(p: number) {
   page.value = p
-  load()
+  const changed = updateQuery({ page: p > 1 ? p : undefined })
+  if (!changed) load()
   window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
@@ -85,7 +196,6 @@ function onToggleFavorite(id: number) {
 }
 
 onMounted(async () => {
-  load()
   try {
     sources.value = await getSources()
   } catch {
@@ -140,26 +250,48 @@ onMounted(async () => {
       </div>
 
       <!-- 加载失败 -->
-      <EmptyState
-        v-else-if="error"
-        title="内容加载失败"
-        :description="error"
-      >
+      <EmptyState v-else-if="error" title="内容加载失败" :description="error">
         <el-button type="primary" @click="load">重新加载</el-button>
       </EmptyState>
 
       <!-- 空结果 -->
       <EmptyState
         v-else-if="items.length === 0"
-        title="没有找到匹配的校园机会"
-        description="试试更换关键词或清空筛选条件"
+        :title="hasActiveFilter ? '没有找到匹配的校园机会' : '暂时没有校园机会'"
+        :description="
+          hasActiveFilter
+            ? `当前条件：${filterSummary || '未设置'}。试试减少筛选条件或换一个更宽泛的关键词。`
+            : '管理员还未采集到通知，稍后再来看看'
+        "
         show-clear
         @clear="resetFilters"
       />
 
       <!-- 结果列表 -->
       <template v-else>
-        <div class="result-count">共 {{ total }} 条校园机会</div>
+        <div class="list-toolbar">
+          <div class="result-count">
+            共 {{ total }} 条校园机会
+            <span v-if="filterSummary" class="count-filter">· {{ filterSummary }}</span>
+            <router-link v-if="subscribedIds" to="/sources" class="count-sub">
+              · 仅显示已订阅来源
+            </router-link>
+          </div>
+          <el-select
+            :model-value="sort"
+            size="small"
+            class="sort-select"
+            @update:model-value="onSortChange"
+          >
+            <el-option
+              v-for="opt in sortOptions"
+              :key="opt.value"
+              :label="opt.label"
+              :value="opt.value"
+            />
+          </el-select>
+        </div>
+
         <div class="notice-list">
           <NoticeCard
             v-for="n in items"
@@ -218,10 +350,31 @@ onMounted(async () => {
 .filter-wrap {
   margin-bottom: 18px;
 }
+.list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 4px 2px 12px;
+}
 .result-count {
   color: var(--zg-text-secondary);
   font-size: 13px;
-  margin: 4px 2px 12px;
+}
+.count-filter {
+  color: var(--zg-primary);
+}
+.count-sub {
+  color: var(--zg-text-secondary);
+  text-decoration: none;
+  border-bottom: 1px dashed currentColor;
+}
+.count-sub:hover {
+  color: var(--zg-primary);
+}
+.sort-select {
+  width: 132px;
+  flex: none;
 }
 .notice-list {
   display: flex;
@@ -253,6 +406,10 @@ onMounted(async () => {
   }
   .hero-sub {
     font-size: 14px;
+  }
+  .result-count {
+    flex: 1;
+    min-width: 0;
   }
   .pager :deep(.el-pagination) {
     --el-pagination-font-size: 13px;

@@ -57,6 +57,13 @@ export interface NoticeListResp {
 /** 列表查询参数 */
 export type DeadlineFilter = 'all' | 'urgent' | 'upcoming' | 'expired' | 'unknown'
 
+/**
+ * 排序方式：
+ * - deadline：最近截止优先（已截止沉底，截止日期未知的最后）
+ * - published：最新发布优先
+ */
+export type NoticeSort = 'deadline' | 'published'
+
 export interface NoticeQuery {
   q?: string
   category?: string
@@ -64,6 +71,7 @@ export interface NoticeQuery {
   /** 订阅过滤（扩展参数，逗号分隔多个来源 ID） */
   source_ids?: number[]
   deadline_status?: DeadlineFilter
+  sort?: NoticeSort
   page?: number
   page_size?: number
 }

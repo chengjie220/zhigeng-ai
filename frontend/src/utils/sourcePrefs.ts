@@ -21,20 +21,21 @@ export function setSelectedSourceIds(ids: number[]): void {
   localStorage.setItem(KEY, JSON.stringify(ids))
 }
 
-/** 切换单个来源的订阅状态 */
-export function toggleSourceId(id: number): boolean {
+/**
+ * 切换单个来源的订阅状态，返回切换后的状态。
+ * allSourceIds：当前全部来源 ID。首次操作（尚未写过 localStorage）时会用它
+ * 把「全部订阅」展开成显式列表，否则取消一个来源会误伤其他所有来源。
+ */
+export function toggleSourceId(id: number, allSourceIds: number[] = []): boolean {
   const current = getSelectedSourceIds()
-  // 从未设置过时，视为全部已订阅
-  const set = new Set(current ?? undefined)
-  if (current === null) {
-    // 首次操作：从「全部」转为显式列表，先移除被点的这一个
-    set.delete(id)
-  } else if (set.has(id)) {
+  const set = new Set(current ?? allSourceIds)
+  if (set.has(id)) {
     set.delete(id)
   } else {
     set.add(id)
   }
-  const next = [...set]
+  // 排序后写入，保证同一订阅组合的存储结果稳定
+  const next = [...set].sort((a, b) => a - b)
   setSelectedSourceIds(next)
   return set.has(id)
 }

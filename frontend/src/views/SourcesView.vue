@@ -30,7 +30,11 @@ async function load() {
 }
 
 function onToggle(id: number, val: boolean) {
-  const nowOn = toggleSourceId(id)
+  // 传入全部来源 ID：首次操作时才能正确地把「全部订阅」展开成显式列表
+  const nowOn = toggleSourceId(
+    id,
+    sources.value.map((s) => s.id),
+  )
   subscribedMap.value = { ...subscribedMap.value, [id]: nowOn }
   const ids = getSelectedSourceIds()
   ElMessage.success(nowOn ? '已订阅，首页将展示该来源' : '已取消订阅')
