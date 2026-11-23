@@ -1,0 +1,261 @@
+<script setup lang="ts">
+import { onMounted, ref } from 'vue'
+import { ElMessage } from 'element-plus'
+import SearchBar from '@/components/SearchBar.vue'
+import FilterPanel from '@/components/FilterPanel.vue'
+import NoticeCard from '@/components/NoticeCard.vue'
+import EmptyState from '@/components/EmptyState.vue'
+import { getNotices } from '@/api/notices'
+import { getSources } from '@/api/sources'
+import type { DeadlineFilter, NoticeItem, SourceItem } from '@/types/notice'
+import { getFavoriteIds, toggleFavorite as toggleFavStore } from '@/utils/favorites'
+import { getSelectedSourceIds } from '@/utils/sourcePrefs'
+
+const loading = ref(false)
+const error = ref('')
+const items = ref<NoticeItem[]>([])
+const total = ref(0)
+const page = ref(1)
+const pageSize = 10
+
+/** keyword：输入框实时值；appliedKeyword：点搜索/回车后的查询值 */
+const keyword = ref('')
+const appliedKeyword = ref('')
+const category = ref('')
+const sourceId = ref<number | ''>('')
+const deadlineStatus = ref<DeadlineFilter>('all')
+
+const sources = ref<SourceItem[]>([])
+const favoriteIds = ref<number[]>(getFavoriteIds())
+
+async function load() {
+  loading.value = true
+  error.value = ''
+  try {
+    const subscribed = getSelectedSourceIds()
+    const resp = await getNotices({
+      q: appliedKeyword.value || undefined,
+      category: category.value || undefined,
+      source_id: sourceId.value === '' ? undefined : sourceId.value,
+      source_ids: subscribed ?? undefined,
+      deadline_status: deadlineStatus.value,
+      page: page.value,
+      page_size: pageSize,
+    })
+    items.value = resp.items
+    total.value = resp.total
+  } catch {
+    error.value = '加载失败，请检查网络后重试'
+  } finally {
+    loading.value = false
+  }
+}
+
+function onSearch(value: string) {
+  appliedKeyword.value = value
+  page.value = 1
+  load()
+}
+
+function onFilterChange() {
+  page.value = 1
+  load()
+}
+
+function resetFilters() {
+  keyword.value = ''
+  appliedKeyword.value = ''
+  category.value = ''
+  sourceId.value = ''
+  deadlineStatus.value = 'all'
+  page.value = 1
+  load()
+}
+
+function onPageChange(p: number) {
+  page.value = p
+  load()
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+function onToggleFavorite(id: number) {
+  toggleFavStore(id)
+  favoriteIds.value = getFavoriteIds()
+  ElMessage.success(favoriteIds.value.includes(id) ? '已加入收藏' : '已取消收藏')
+}
+
+onMounted(async () => {
+  load()
+  try {
+    sources.value = await getSources()
+  } catch {
+    // 来源列表加载失败不阻塞首页，仅筛选下拉为空
+  }
+})
+</script>
+
+<template>
+  <div class="home-view">
+    <!-- 顶部介绍区 -->
+    <section class="hero">
+      <div class="zg-container hero-inner">
+        <h1>别让校园机会从你身边溜走</h1>
+        <p class="hero-sub">竞赛、实践、讲座与校园活动，一站发现</p>
+        <SearchBar
+          v-model="keyword"
+          class="hero-search"
+          placeholder="搜索竞赛、实践、讲座…"
+          @search="onSearch"
+        />
+      </div>
+    </section>
+
+    <div class="zg-container content-area">
+      <!-- 筛选区 -->
+      <div class="filter-wrap">
+        <FilterPanel
+          v-model:category="category"
+          v-model:source-id="sourceId"
+          v-model:deadline-status="deadlineStatus"
+          :sources="sources"
+          @update:category="onFilterChange"
+          @update:source-id="onFilterChange"
+          @update:deadline-status="onFilterChange"
+          @reset="resetFilters"
+        />
+      </div>
+
+      <!-- 加载中 -->
+      <div v-if="loading" class="skeleton-list">
+        <el-skeleton v-for="i in 3" :key="i" animated>
+          <template #template>
+            <div class="skeleton-card zg-card">
+              <el-skeleton-item variant="text" style="width: 30%; height: 20px" />
+              <el-skeleton-item variant="text" style="width: 80%; height: 24px" />
+              <el-skeleton-item variant="text" style="width: 100%; height: 16px" />
+              <el-skeleton-item variant="text" style="width: 60%; height: 16px" />
+            </div>
+          </template>
+        </el-skeleton>
+      </div>
+
+      <!-- 加载失败 -->
+      <EmptyState
+        v-else-if="error"
+        title="内容加载失败"
+        :description="error"
+      >
+        <el-button type="primary" @click="load">重新加载</el-button>
+      </EmptyState>
+
+      <!-- 空结果 -->
+      <EmptyState
+        v-else-if="items.length === 0"
+        title="没有找到匹配的校园机会"
+        description="试试更换关键词或清空筛选条件"
+        show-clear
+        @clear="resetFilters"
+      />
+
+      <!-- 结果列表 -->
+      <template v-else>
+        <div class="result-count">共 {{ total }} 条校园机会</div>
+        <div class="notice-list">
+          <NoticeCard
+            v-for="n in items"
+            :key="n.id"
+            :notice="n"
+            :favorited="favoriteIds.includes(n.id)"
+            @toggle-favorite="onToggleFavorite"
+          />
+        </div>
+        <div class="pager">
+          <el-pagination
+            background
+            layout="prev, pager, next, total"
+            :total="total"
+            :page-size="pageSize"
+            :current-page="page"
+            @current-change="onPageChange"
+          />
+        </div>
+      </template>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.hero {
+  background: linear-gradient(160deg, #eaf4ef 0%, #f6f9f7 60%, #fdf3e7 100%);
+  border-bottom: 1px solid var(--zg-border);
+  padding: 52px 0 44px;
+  margin-bottom: 24px;
+}
+.hero-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 12px;
+}
+.hero h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
+.hero-sub {
+  margin: 0 0 12px;
+  color: var(--zg-text-secondary);
+  font-size: 16px;
+}
+.hero-search {
+  max-width: 620px;
+}
+.content-area {
+  padding-bottom: 40px;
+}
+.filter-wrap {
+  margin-bottom: 18px;
+}
+.result-count {
+  color: var(--zg-text-secondary);
+  font-size: 13px;
+  margin: 4px 2px 12px;
+}
+.notice-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.skeleton-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.skeleton-card {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.pager {
+  display: flex;
+  justify-content: center;
+  margin-top: 24px;
+}
+@media (max-width: 720px) {
+  .hero {
+    padding: 36px 0 30px;
+  }
+  .hero h1 {
+    font-size: 22px;
+  }
+  .hero-sub {
+    font-size: 14px;
+  }
+  .pager :deep(.el-pagination) {
+    --el-pagination-font-size: 13px;
+  }
+}
+</style>
