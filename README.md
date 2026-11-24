@@ -55,7 +55,8 @@
 
 ## 技术栈
 
-Vue 3 + Vite + TypeScript + Element Plus + Vue Router + Axios（Sass）· Vitest + @vue/test-utils
+前端：Vue 3 + Vite + TypeScript + Element Plus + Vue Router + Axios（Sass）· Vitest + @vue/test-utils
+后端：Python FastAPI + SQLAlchemy + SQLite + HTTPX + BeautifulSoup · AI 结构化提取（OpenAI 兼容接口 + 规则降级）
 
 ## 目录结构
 
@@ -70,13 +71,23 @@ Vue 3 + Vite + TypeScript + Element Plus + Vue Router + Axios（Sass）· Vitest
 │   │   ├── types/         # 前后端共用的数据类型（唯一事实来源）
 │   │   └── styles/        # 设计变量与全局样式
 │   └── tests/             # Vitest 单元测试（8 个文件 / 61 个用例）
-├── docs/                  # 前端测试与用户反馈记录
-└── preview/               # 界面截图
+├── backend/               # 后端工程（FastAPI + 采集适配器 + AI 解析 + 定时同步）
+│   ├── app/               # api / models / crawlers / services / jobs
+│   └── tests/             # pytest（22 个用例，含真实 HTML 夹具）
+├── docs/                  # 测试与用户反馈记录、中期检查材料
+└── preview/               # 界面截图（Mock 与真实数据模式）
 ```
 
 ## 快速开始
 
 ```bash
+# 后端：采集真实通知并启动 API
+cd backend
+pip install -r requirements.txt
+python -m app.jobs.sync_all        # 首次抓取 4 个校园来源入库
+uvicorn app.main:app --port 8000
+
+# 前端：另开终端
 cd frontend
 npm install
 npm run dev       # http://localhost:5173
@@ -84,9 +95,9 @@ npm run test      # 单元测试（61 个用例）
 npm run build     # 类型检查 + 生产构建
 ```
 
-默认走 **Mock 模式**（`frontend/.env.development` 中 `VITE_USE_MOCK=true`），使用 8 条虚构示例通知，前端可完全独立运行。联调真实后端时改为 `false`，请求经 Vite 代理转发到 `http://localhost:8000`。
+默认走**真实后端**（`frontend/.env.development` 中 `VITE_USE_MOCK=false`，请求经 Vite 代理转发到 `http://localhost:8000`）。前端也可完全独立开发：把 `VITE_USE_MOCK` 改为 `true` 即切换到 8 条虚构示例通知（页面顶部有黄色提示条标识）。
 
-接口约定、字段类型与扩展参数见 [`frontend/README.md`](frontend/README.md)。
+接口约定、字段类型与扩展参数见 [`frontend/README.md`](frontend/README.md)；后端说明见 [`backend/README.md`](backend/README.md)。
 
 ## 测试
 
@@ -109,7 +120,7 @@ npm run test
 - 收藏与订阅仅保存在当前浏览器，无账户体系，换设备不同步。
 - 截止日期只展示原文明确写出的时间，不做「未写则默认 23:59」的推断；无法确认时标注「待核实」。
 - AI 提取结果仅供参考，页面保留原文依据与正文供核对。
-- 第一版未接入真实抓取链路，仓库内为前端工程 + Mock 数据。
+- 当前默认 AI 解析走规则降级（未配置 LLM API Key）；已实现 OpenAI 兼容主路径，配置 `backend/.env` 后自动切换。字段无依据时一律标「待核实」，不编造。
 
 ## 版权与声明
 

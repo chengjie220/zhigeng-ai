@@ -17,8 +17,8 @@ npm run preview    # 本地预览构建产物
 
 ## 开发模式：Mock 与真实后端切换
 
-- `.env.development` 中 `VITE_USE_MOCK=true`（默认）：使用 `src/api/mock/data.ts` 中的**示例数据**（虚构内容，页面顶部有黄色提示条），前端可完全独立开发。
-- 联调真实后端：把 `VITE_USE_MOCK` 改为 `false`，请求将经 Vite 代理转发到 `http://localhost:8000`（见 `vite.config.ts`）。
+- 默认（`.env.development` 中 `VITE_USE_MOCK=false`）：走真实后端 API，请求经 Vite 代理转发到 `http://localhost:8000`（见 `vite.config.ts`）；需先启动 `backend/`。
+- 独立开发：把 `VITE_USE_MOCK` 改为 `true`，使用 `src/api/mock/data.ts` 中的**示例数据**（虚构内容，页面顶部有黄色提示条），无需后端。
 
 ## 页面结构
 
