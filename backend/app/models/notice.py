@@ -31,6 +31,8 @@ class Notice(Base):
     application_method: Mapped[str | None] = mapped_column(Text, nullable=True)
     evidence_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     attachments_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # 分类专属字段（公示期/主讲人/赛事级别等），JSON 对象
+    extra_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     ai_status: Mapped[str] = mapped_column(String(16), default="pending")  # pending/done/failed
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=lambda: datetime.now(timezone.utc))

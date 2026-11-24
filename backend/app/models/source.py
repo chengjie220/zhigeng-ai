@@ -16,4 +16,5 @@ class Source(Base):
     parser_key: Mapped[str] = mapped_column(String(64), nullable=False)
     content_types: Mapped[str] = mapped_column(String(128), default="")
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    is_custom: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

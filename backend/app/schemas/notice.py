@@ -1,4 +1,6 @@
 """API 响应 Schema —— 字段名与 frontend/src/types/notice.ts 严格一致。"""
+from typing import Any
+
 from pydantic import BaseModel
 
 
@@ -28,6 +30,7 @@ class NoticeDetail(NoticeItem):
     evidence: dict[str, str] = {}
     attachments: list[NoticeAttachment] = []
     body_text: str = ""
+    extra: dict[str, Any] = {}
 
 
 class NoticeListResp(BaseModel):
@@ -44,3 +47,25 @@ class SourceItem(BaseModel):
     content_types: str
     last_synced_at: str | None = None
     enabled: bool
+    is_custom: bool = False
+
+
+class SourceSearchResult(BaseModel):
+    title: str
+    url: str
+    snippet: str
+    domain: str
+
+
+class SourceProbeResult(BaseModel):
+    ok: bool
+    name: str
+    reason: str
+    sample_count: int
+    samples: list[str]
+
+
+class SourceCreateRequest(BaseModel):
+    name: str
+    url: str
+    content_types: str = "自定义来源"

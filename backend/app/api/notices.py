@@ -59,6 +59,7 @@ def _to_detail(n: Notice, source_name: str) -> NoticeDetail:
         evidence=_loads(n.evidence_json, {}),
         attachments=attachments,
         body_text=n.body_text or "",
+        extra=_loads(n.extra_json, {}),
     )
 
 

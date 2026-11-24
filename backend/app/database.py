@@ -1,7 +1,7 @@
 """数据库引擎与会话。"""
 from collections.abc import Generator
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -29,12 +29,31 @@ def get_db() -> Generator[Session, None, None]:
         db.close()
 
 
+def _ensure_columns() -> None:
+    """轻量迁移：为已有数据库补上新增列，避免重建丢失真实数据。"""
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    wanted = {
+        "notices": {"extra_json": "TEXT"},
+        "sources": {"is_custom": "INTEGER DEFAULT 0"},
+    }
+    with engine.begin() as conn:
+        for table, columns in wanted.items():
+            if table not in tables:
+                continue
+            existing = {c["name"] for c in inspector.get_columns(table)}
+            for name, ddl in columns.items():
+                if name not in existing:
+                    conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 def init_db() -> None:
-    """建表 + 预置信息源（幂等）。"""
+    """建表 + 轻量迁移 + 预置信息源（幂等）。"""
     from app.models import Source  # noqa: F401 确保模型注册
     from app.services.seed import seed_sources
 
     Base.metadata.create_all(bind=engine)
+    _ensure_columns()
     db = SessionLocal()
     try:
         seed_sources(db)

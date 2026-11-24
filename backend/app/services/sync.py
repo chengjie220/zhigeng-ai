@@ -26,6 +26,7 @@ def apply_parsed(notice: Notice, parsed, db: Session, model: str, status: str, d
     notice.requirements_json = _dump(parsed.requirements)
     notice.application_method = parsed.application_method
     notice.evidence_json = _dump(parsed.evidence)
+    notice.extra_json = _dump(getattr(parsed, "extra", None))
     notice.ai_status = "done" if status == "ok" else "failed"
     notice.updated_at = datetime.now(timezone.utc)
     db.add(
@@ -48,6 +49,9 @@ def sync_source(db: Session, source: Source, max_articles: int = 30) -> dict:
     stats = {"found": 0, "added": 0, "updated": 0, "error": None}
     try:
         crawler = get_crawler(source.parser_key)
+        # 自定义来源的列表地址来自数据库，不写死在适配器里
+        if hasattr(crawler, "configure"):
+            crawler.configure(source.url)
         entries = crawler.fetch_list()
         stats["found"] = len(entries)
 
