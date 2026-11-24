@@ -63,6 +63,13 @@ describe('简报行动文案', () => {
     expect(pickActionText(null)).toBe(ACTION_PLACEHOLDER)
   })
 
+  it('公示类优先展示异议反馈，而不是报名方式', () => {
+    expect(
+      pickActionText(detail({ extra: { '异议反馈': '实名发送至邮箱' } }), '公示'),
+    ).toBe('实名发送至邮箱')
+    expect(pickActionText(detail(), '公示')).toBe('异议反馈方式待核实，请查看原文')
+  })
+
   it('参与对象最多展示前三项', () => {
     expect(
       pickAudienceText(detail({ audience: ['本科生', '研究生', '教师', '校友'] })),
@@ -87,7 +94,8 @@ describe('简报统计', () => {
 
   it('标题按临近截止数量如实生成', () => {
     expect(briefHeadline(3)).toBe('有 3 件事快截止了')
-    expect(briefHeadline(0)).toBe('这周没有临近截止的机会')
+    expect(briefHeadline(0)).toBe('这周没有临近截止的校园机会')
+    expect(briefHeadline(2, '竞赛')).toBe('竞赛类有 2 件事快截止了')
   })
 })
 

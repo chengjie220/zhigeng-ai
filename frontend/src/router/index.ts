@@ -6,8 +6,14 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
+      component: () => import('@/views/CategoryHomeView.vue'),
+      meta: { title: '校园机会' },
+    },
+    {
+      path: '/category/:category',
+      name: 'category-brief',
       component: () => import('@/views/BriefView.vue'),
-      meta: { title: '今日简报' },
+      meta: { title: '分类简报' },
     },
     {
       path: '/notices',

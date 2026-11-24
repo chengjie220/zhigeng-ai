@@ -1,4 +1,9 @@
-import type { NoticeDetail, SourceItem } from '@/types/notice'
+import type {
+  NoticeDetail,
+  SourceItem,
+  SourceProbeResult,
+  SourceSearchResult,
+} from '@/types/notice'
 
 /**
  * 示例数据（Mock）—— 仅用于前端独立开发与联调前演示。
@@ -32,6 +37,60 @@ export const mockSources: SourceItem[] = [
   },
 ]
 
+/** Mock 搜索结果：模拟搜索引擎返回的校园网站候选 */
+export const mockSourceSearchResults: SourceSearchResult[] = [
+  {
+    title: '成都大学教务处 - 通知公告',
+    url: 'https://jwc.cdu.edu.cn/index/tzgg.htm',
+    snippet: '发布选课、考试、成绩、学籍等教学相关通知，提供最新公告列表。',
+    domain: 'jwc.cdu.edu.cn',
+  },
+  {
+    title: '成都大学学生工作部（处） - 通知公告',
+    url: 'https://xsc.cdu.edu.cn/index/tzgg.htm',
+    snippet: '奖助学金评定、宿舍管理、思政教育等学生事务通知与公示。',
+    domain: 'xsc.cdu.edu.cn',
+  },
+  {
+    title: '成都大学图书馆 - 读者通知',
+    url: 'https://lib.cdu.edu.cn/xxfw/tzgg.htm',
+    snippet: '开放时间调整、数据库试用、阅读推广活动与讲座通知。',
+    domain: 'lib.cdu.edu.cn',
+  },
+  {
+    title: '成都大学招生就业处 - 就业信息',
+    url: 'https://zjy.cdu.edu.cn/jyxx/jygg.htm',
+    snippet: '校园招聘会、实习实践、就业政策与宣讲会信息。',
+    domain: 'zjy.cdu.edu.cn',
+  },
+]
+
+/** Mock 网址探测结果 */
+export function mockProbeSource(url: string): SourceProbeResult {
+  if (!/^https?:\/\//.test(url)) {
+    return {
+      ok: false,
+      name: '',
+      reason: '请填写以 http:// 或 https:// 开头的完整网址',
+      sample_count: 0,
+      samples: [],
+    }
+  }
+  const host = url.replace(/^https?:\/\//, '').split('/')[0] || '校园网站'
+  return {
+    ok: true,
+    name: host.split('.')[0] + ' · 通知公告',
+    reason: '识别到 4 条疑似通知标题，可以作为列表页添加',
+    sample_count: 4,
+    samples: [
+      '关于组织开展 2026 年度校级竞赛申报工作的通知',
+      '2026 年奖学金拟获奖名单公示',
+      '学术讲座预告：人工智能与教育变革',
+      '寒假社会实践活动志愿者招募通知',
+    ],
+  }
+}
+
 export const mockNotices: NoticeDetail[] = [
   {
     id: 1,
@@ -51,6 +110,10 @@ export const mockNotices: NoticeDetail[] = [
     evidence: {
       deadline_date: '请于 2026 年 12 月 10 日前将报名材料发送至指定邮箱。',
       application_method: '报名材料通过创新创业学院官网通知附件下载模板后提交。',
+    },
+    extra: {
+      '级别': '校级选拔，优胜项目推荐参加省级竞赛',
+      '团队规模': '每队人数不超过 5 人',
     },
     attachments: [{ name: '报名表模板.docx', url: 'https://example.com/attachment/1' }],
     body_text:
@@ -79,6 +142,10 @@ export const mockNotices: NoticeDetail[] = [
       deadline_date: '报名截止时间为 12 月 5 日 18:00。',
       application_method: '请携带学生证到校团委办公室现场报名。',
     },
+    extra: {
+      '实践地点': '社区、乡村（具体方向报名后分配）',
+      '服务时长': '每支团队服务周期不少于 7 天',
+    },
     attachments: [],
     body_text:
       '为引导青年学生在社会实践中受教育、长才干、作贡献，校团委决定组织开展“青春志愿行”寒假社会实践活动，现面向全校招募志愿者。\n' +
@@ -105,6 +172,12 @@ export const mockNotices: NoticeDetail[] = [
     evidence: {
       deadline_date: '讲座将于 11 月 28 日下午举行。',
       application_method: '本次讲座向全校师生开放，无需报名。',
+    },
+    extra: {
+      '时间': '11 月 28 日下午',
+      '地点': '学术报告厅',
+      '主讲人': '知名学者（原文未写明姓名）',
+      '主办单位': '学校',
     },
     attachments: [],
     body_text:
@@ -142,27 +215,38 @@ export const mockNotices: NoticeDetail[] = [
   },
   {
     id: 5,
-    title: '【示例】校园歌手大赛决赛观众招募',
-    source_id: 3,
-    source_name: '共青团成都大学委员会',
-    category: '活动',
+    title: '【示例】2026 年度国家奖学金拟获奖名单公示',
+    source_id: 1,
+    source_name: '成都大学官网 · 通知公告',
+    category: '公示',
     published_at: '2026-11-19',
-    deadline_date: null,
+    deadline_date: '2026-11-26',
     deadline_time: null,
-    summary: '校园歌手大赛决赛开放观众席位，现场设互动环节，欢迎同学到场观赛。',
+    summary: '本年度国家奖学金拟获奖学生名单予以公示，公示期内可实名提出异议。',
     ai_status: 'done',
     original_url: 'https://example.com/notice/5',
     audience: ['全校学生'],
     requirements: [],
     application_method: null,
-    evidence: {},
+    evidence: {
+      deadline_date: '一、公示期：自 11 月 19 日起至 11 月 26 日止，共 5 个工作日。',
+      '公示对象': '现将 2026 年度国家奖学金拟获奖学生名单予以公示。',
+      '异议反馈': '公示期内如有异议，请以实名方式发送至 jxj@cdu.example.edu.cn',
+      '公示单位': '学生工作部（处）负责本次公示与异议受理。',
+    },
+    extra: {
+      '公示期': '11 月 19 日至 11 月 26 日',
+      '公示对象': '2026 年度国家奖学金拟获奖学生',
+      '异议反馈': '实名发送至 jxj@cdu.example.edu.cn',
+      '公示单位': '学生工作部（处）',
+    },
     attachments: [],
     body_text:
-      '一年一度的校园歌手大赛即将迎来决赛。经过初赛、复赛的激烈角逐，共有 12 位选手晋级决赛。\n' +
-      '一、赛制安排：决赛设独唱、组合唱两个环节，由专业评委与大众评审共同打分。\n' +
-      '二、观赛方式：现场设置观众投票与互动抽奖环节，欢迎同学们到场观赛助威，观众席位有限，先到先得。\n' +
-      '三、注意事项：请服从现场工作人员引导，保持会场秩序，比赛期间请勿使用闪光灯拍照。\n' +
-      '四、其他：具体赛程与场地安排请关注校团委后续通知。',
+      '现将 2026 年度国家奖学金拟获奖学生名单予以公示。\n' +
+      '一、公示期：自 11 月 19 日起至 11 月 26 日止，共 5 个工作日。\n' +
+      '二、公示对象：2026 年度国家奖学金拟获奖学生，名单详见附件。\n' +
+      '三、异议反馈：公示期内如有异议，请以实名方式发送至 jxj@cdu.example.edu.cn，逾期不再受理。\n' +
+      '四、公示单位：学生工作部（处）负责本次公示与异议受理。',
   },
   {
     id: 6,

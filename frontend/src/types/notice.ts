@@ -34,6 +34,8 @@ export interface NoticeDetail extends NoticeItem {
   evidence: NoticeEvidence
   attachments: NoticeAttachment[]
   body_text: string
+  /** 分类专属字段：如公示期、主讲人、赛事级别；无依据时不会出现 */
+  extra?: Record<string, string | string[]>
 }
 
 /** 预置信息源（对应 GET /api/v1/sources） */
@@ -44,6 +46,31 @@ export interface SourceItem {
   content_types: string
   last_synced_at: string | null
   enabled: boolean
+  /** 用户自行添加的来源 */
+  is_custom?: boolean
+}
+
+/** 联网搜索到的候选网站 */
+export interface SourceSearchResult {
+  title: string
+  url: string
+  snippet: string
+  domain: string
+}
+
+/** 网址探测结果：能不能作为一个通知列表页来采集 */
+export interface SourceProbeResult {
+  ok: boolean
+  name: string
+  reason: string
+  sample_count: number
+  samples: string[]
+}
+
+export interface SourceCreatePayload {
+  name: string
+  url: string
+  content_types?: string
 }
 
 /** 通知列表响应结构 */

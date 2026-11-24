@@ -14,7 +14,7 @@ afterEach(() => {
 describe('getNotices（Mock 数据）', () => {
   it('默认按最近截止优先排序，无截止日期的排最后', async () => {
     const resp = await getNotices({ page_size: 20 })
-    expect(resp.items.map((n) => n.id)).toEqual([3, 6, 2, 8, 1, 4, 7, 5])
+    expect(resp.items.map((n) => n.id)).toEqual([5, 3, 6, 2, 8, 1, 4, 7])
     expect(resp.total).toBe(8)
   })
 
@@ -41,7 +41,7 @@ describe('getNotices（Mock 数据）', () => {
 
   it('按截止状态过滤：7 天内截止', async () => {
     const resp = await getNotices({ deadline_status: 'urgent' })
-    expect(resp.items.map((n) => n.id)).toEqual([3])
+    expect(resp.items.map((n) => n.id)).toEqual([5, 3])
   })
 
   it('按截止状态过滤：已截止', async () => {
@@ -51,7 +51,7 @@ describe('getNotices（Mock 数据）', () => {
 
   it('分页正确切片，total 为过滤后的总数', async () => {
     const resp = await getNotices({ page: 2, page_size: 3 })
-    expect(resp.items.map((n) => n.id)).toEqual([8, 1, 4])
+    expect(resp.items.map((n) => n.id)).toEqual([2, 8, 1])
     expect(resp.total).toBe(8)
     expect(resp.page).toBe(2)
     expect(resp.page_size).toBe(3)

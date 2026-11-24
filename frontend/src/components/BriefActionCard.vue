@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import type { BriefAction } from '@/utils/brief'
 import { formatDate } from '@/utils/date'
+import { buildCategoryFields, getCategorySpec } from '@/config/categories'
 
 const props = defineProps<{
   action: BriefAction
@@ -22,18 +23,45 @@ const countdown = computed(() => {
 
 /** 有具体报名方式时高亮，占位文案弱化显示 */
 const isPlaceholder = computed(() => props.action.actionText.includes('待核实'))
+
+/** 不同类别看不同字段：公示看公示对象/异议反馈，讲座看主讲人/地点，竞赛看级别/团队规模 */
+const categoryFields = computed(() =>
+  buildCategoryFields(props.action.detail, props.action.notice.category, 4).filter(
+    // 公示期已经在顶部与倒计时里展示，不重复占位
+    (f) =>
+      !(
+        props.action.notice.category === '公示' &&
+        (f.label === '公示期至' || f.label === '异议反馈')
+      ),
+  ).slice(0, 3),
+)
+
+const actionLabel = computed(() => {
+  if (props.action.notice.category === '公示') return '异议'
+  if (props.action.notice.category === '讲座') return '参与'
+  return '下一步'
+})
+
+const countdownLabel = computed(() => {
+  if (props.action.daysLeft === null) return '待核实'
+  if (props.action.notice.category === '公示') return '公示期至'
+  if (props.action.daysLeft === 0) return '天截止'
+  return '天后截止'
+})
+
+const categoryDesc = computed(() => getCategorySpec(props.action.notice.category).description)
 </script>
 
 <template>
   <article class="brief-action zg-card">
     <div class="countdown" :class="{ today: action.daysLeft === 0 }">
       <strong>{{ countdown.number }}</strong>
-      <span>{{ countdown.unit }}</span>
+      <span>{{ countdownLabel }}</span>
     </div>
 
     <div class="action-body">
       <div class="action-top">
-        <el-tag size="small" effect="plain" disable-transitions>
+        <el-tag size="small" effect="plain" disable-transitions :title="categoryDesc">
           {{ action.notice.category }}
         </el-tag>
         <span class="action-deadline">截止 {{ formatDate(action.notice.deadline_date) }}</span>
@@ -47,12 +75,16 @@ const isPlaceholder = computed(() => props.action.actionText.includes('待核实
       </router-link>
 
       <div class="action-line" :class="{ placeholder: isPlaceholder }">
-        <span class="line-label">下一步</span>
+        <span class="line-label">{{ actionLabel }}</span>
         <span class="line-value">{{ action.actionText }}</span>
       </div>
       <div class="action-line">
         <span class="line-label">对象</span>
         <span class="line-value">{{ action.audienceText }}</span>
+      </div>
+      <div v-for="field in categoryFields" :key="field.label" class="action-line category-field">
+        <span class="line-label">{{ field.label }}</span>
+        <span class="line-value">{{ field.value }}</span>
       </div>
 
       <div class="action-footer">
@@ -159,6 +191,13 @@ const isPlaceholder = computed(() => props.action.actionText.includes('待核实
 }
 .action-line.placeholder .line-value {
   color: var(--zg-text-secondary);
+}
+.category-field {
+  font-size: 12.5px;
+}
+.category-field .line-label {
+  flex-basis: 64px;
+  color: var(--zg-primary);
 }
 .action-footer {
   display: flex;

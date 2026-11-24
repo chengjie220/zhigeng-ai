@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { DeadlineFilter, SourceItem } from '@/types/notice'
+import { CATEGORIES } from '@/config/categories'
 
 defineProps<{
   category: string
@@ -15,7 +16,7 @@ const emit = defineEmits<{
   reset: []
 }>()
 
-const categoryOptions = ['竞赛', '讲座', '实践', '活动']
+const categoryOptions = CATEGORIES.map((c) => c.key)
 const deadlineOptions: { label: string; value: DeadlineFilter }[] = [
   { label: '全部截止状态', value: 'all' },
   { label: '7天内截止', value: 'urgent' },

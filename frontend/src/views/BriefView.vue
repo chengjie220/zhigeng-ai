@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import BriefActionCard from '@/components/BriefActionCard.vue'
 import DeadlineBadge from '@/components/DeadlineBadge.vue'
@@ -8,22 +8,30 @@ import EmptyState from '@/components/EmptyState.vue'
 import { getBriefData, type BriefData } from '@/api/brief'
 import { formatDate } from '@/utils/date'
 import { briefHeadline } from '@/utils/brief'
+import { CATEGORY_KEYS, getCategorySpec } from '@/config/categories'
 import { getFavoriteIds, toggleFavorite as toggleFavStore } from '@/utils/favorites'
 
+const route = useRoute()
 const router = useRouter()
+const category = computed(() => {
+  const raw = route.params.category
+  const value = typeof raw === 'string' ? raw : ''
+  return CATEGORY_KEYS.includes(value as (typeof CATEGORY_KEYS)[number]) ? value : ''
+})
+const categorySpec = computed(() => (category.value ? getCategorySpec(category.value) : null))
 const data = ref<BriefData | null>(null)
 const loading = ref(true)
 const error = ref('')
 const keyword = ref('')
 const favoriteIds = ref<number[]>(getFavoriteIds())
 
-const headline = computed(() => briefHeadline(data.value?.urgentTotal ?? 0))
+const headline = computed(() => briefHeadline(data.value?.urgentTotal ?? 0, category.value))
 
 async function load() {
   loading.value = true
   error.value = ''
   try {
-    data.value = await getBriefData()
+    data.value = await getBriefData(category.value || undefined)
   } catch {
     error.value = '简报加载失败，请检查后端服务后重试'
   } finally {
@@ -36,7 +44,7 @@ function goSearch() {
 }
 
 function goList(query: Record<string, string>) {
-  router.push({ path: '/notices', query })
+  router.push({ path: '/notices', query: category.value ? { ...query, category: category.value } : query })
 }
 
 function onToggleFavorite(id: number) {
@@ -45,6 +53,8 @@ function onToggleFavorite(id: number) {
   ElMessage.success(favoriteIds.value.includes(id) ? '已加入收藏' : '已取消收藏')
 }
 
+watch(() => route.params.category, load)
+
 onMounted(load)
 </script>
 
@@ -52,10 +62,13 @@ onMounted(load)
   <div class="brief-view">
     <section class="brief-hero">
       <div class="zg-container brief-hero-inner">
-        <div class="brief-eyebrow">知更 AI · 今日简报</div>
+        <div class="brief-eyebrow">
+          {{ category ? `知更 AI · ${category}简报` : '知更 AI · 今日简报' }}
+        </div>
         <h1>{{ error ? '先看看今天的情况' : headline }}</h1>
         <p v-if="data" class="brief-sub">
-          从 {{ data.sourceCount }} 个信息源的 {{ data.total }} 条通知里，按截止时间排好了优先级
+          {{ categorySpec?.description ?? '把散落的校园通知，整理成你今天该做的事' }} ·
+          共 {{ data.total }} 条{{ category ? `${category}通知` : '通知' }}，按截止时间排序
         </p>
         <p v-else class="brief-sub">把散落的校园通知，整理成你今天该做的事</p>
         <div class="brief-search">
@@ -110,9 +123,14 @@ onMounted(load)
           <div class="block-head">
             <div>
               <h2>优先处理</h2>
-              <p>按截止时间排序，只列还能行动的机会</p>
+              <p>
+                {{ category === '公示' ? '按公示期排序，只列仍在公示期内的条目' : '按截止时间排序，只列还能行动的机会' }}
+              </p>
             </div>
-            <router-link :to="{ path: '/notices', query: { deadline_status: 'urgent' } }" class="block-link">
+            <router-link
+              :to="{ path: '/notices', query: category ? { deadline_status: 'urgent', category } : { deadline_status: 'urgent' } }"
+              class="block-link"
+            >
               全部 {{ data.urgentTotal }} 条 →
             </router-link>
           </div>
@@ -128,7 +146,7 @@ onMounted(load)
           </div>
           <EmptyState
             v-else
-            title="这周没有临近截止的机会"
+            :title="`这周没有临近截止的${category || '校园'}机会`"
             description="可以看看下面刚发布的通知，或者去全部通知里按类别逛逛"
           />
         </section>
@@ -139,7 +157,10 @@ onMounted(load)
               <h2>最近发布</h2>
               <p>还没来得及细看的，先扫一眼标题</p>
             </div>
-            <router-link :to="{ path: '/notices', query: { sort: 'published' } }" class="block-link">
+            <router-link
+              :to="{ path: '/notices', query: category ? { sort: 'published', category } : { sort: 'published' } }"
+              class="block-link"
+            >
               查看全部 →
             </router-link>
           </div>

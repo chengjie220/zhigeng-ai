@@ -34,7 +34,7 @@ describe('示例数据完整性', () => {
   })
 
   it('分类取值在筛选下拉的可选范围内', () => {
-    const allowed = ['竞赛', '讲座', '实践', '活动']
+    const allowed = ['竞赛', '公示', '讲座', '实践', '活动']
     for (const n of mockNotices) {
       expect(allowed, `通知 ${n.id} 的分类「${n.category}」不在筛选项内`).toContain(n.category)
     }

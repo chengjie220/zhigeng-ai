@@ -19,8 +19,14 @@ export const ACTION_PLACEHOLDER = '报名方式待核实，请查看原文'
  * 从 AI 提取结果里挑一句最能指导行动的文案。
  * 优先级：报名方式 > 所需材料 > 占位文案。不做任何编造。
  */
-export function pickActionText(detail: NoticeDetail | null): string {
+export function pickActionText(detail: NoticeDetail | null, category?: string): string {
   if (!detail) return ACTION_PLACEHOLDER
+  if (category === '公示') {
+    const feedback = detail.extra?.['异议反馈']
+    if (typeof feedback === 'string' && feedback.trim()) return feedback
+    if (Array.isArray(feedback) && feedback.length) return feedback.join('；')
+    return '异议反馈方式待核实，请查看原文'
+  }
   const method = detail.application_method?.trim()
   if (method) return method
   const requirements = (detail.requirements ?? []).filter((r) => r?.trim())
@@ -64,14 +70,15 @@ export function buildBriefActions(
         notice,
         detail,
         daysLeft: daysUntil(notice.deadline_date),
-        actionText: pickActionText(detail),
+        actionText: pickActionText(detail, notice.category),
         audienceText: pickAudienceText(detail),
       }
     })
 }
 
-/** 简报标题：有临近截止就说清数量，没有则如实说明 */
-export function briefHeadline(urgentTotal: number): string {
-  if (urgentTotal <= 0) return '这周没有临近截止的机会'
-  return `有 ${urgentTotal} 件事快截止了`
+/** 简报标题：有临近截止就说清数量，没有则如实说明；分类模式下点明类别 */
+export function briefHeadline(urgentTotal: number, category?: string): string {
+  const scope = category ? `${category}类` : ''
+  if (urgentTotal <= 0) return `这周没有临近截止的${scope || '校园'}机会`
+  return `${scope}有 ${urgentTotal} 件事快截止了`
 }

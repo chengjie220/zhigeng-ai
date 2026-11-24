@@ -19,11 +19,13 @@ export interface BriefData {
  * 拉取简报数据。
  * 详情接口逐条请求，单条失败不影响整份简报（降级为「待核实」）。
  */
-export async function getBriefData(): Promise<BriefData> {
-  const [urgentResp, unknownResp, publishedResp, statsResp, sources] = await Promise.all([
-    getNotices({ deadline_status: 'urgent', sort: 'deadline', page_size: 6 }),
-    getNotices({ deadline_status: 'unknown', page_size: 1 }),
-    getNotices({ sort: 'published', page_size: 50 }),
+export async function getBriefData(category?: string): Promise<BriefData> {
+  const scoped = category ? { category } : {}
+  const [urgentResp, unknownResp, publishedResp, totalResp, statsResp, sources] = await Promise.all([
+    getNotices({ ...scoped, deadline_status: 'urgent', sort: 'deadline', page_size: 6 }),
+    getNotices({ ...scoped, deadline_status: 'unknown', page_size: 1 }),
+    getNotices({ ...scoped, sort: 'published', page_size: 50 }),
+    category ? getNotices({ ...scoped, page_size: 1 }) : Promise.resolve(null),
     getStats(),
     getSources().catch(() => [] as SourceItem[]),
   ])
@@ -36,7 +38,7 @@ export async function getBriefData(): Promise<BriefData> {
   })
 
   return {
-    total: statsResp.total,
+    total: totalResp?.total ?? statsResp.total,
     urgentTotal: urgentResp.total,
     recentTotal: countRecentNotices(publishedResp.items),
     unknownTotal: unknownResp.total,
