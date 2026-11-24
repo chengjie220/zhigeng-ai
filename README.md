@@ -4,7 +4,7 @@
 
 成都大学第八届网络创新大赛 · AI 创作挑战赛（进阶组）参赛作品。**本仓库为参赛作品，非学校官方平台。**
 
-![首页](preview/home-desktop.png)
+![今日简报](preview/brief-desktop.png)
 
 ## 它解决什么问题
 
@@ -18,25 +18,31 @@
 
 ## 界面预览
 
-| 首页（筛选 + 排序） | 通知详情（AI 字段 + 原文依据 + 正文） |
+| 首页（AI 今日简报） | 全部通知（筛选 + 排序） |
 | --- | --- |
-| ![](preview/home-desktop.png) | ![](preview/detail-desktop.png) |
+| ![](preview/brief-desktop.png) | ![](preview/notices-desktop.png) |
 
-| 信息源管理 | 我的收藏 |
+| 通知详情（AI 字段 + 原文依据 + 正文） | 我的收藏 |
 | --- | --- |
-| ![](preview/sources-desktop.png) | ![](preview/favorites-filled.png) |
+| ![](preview/detail-desktop.png) | ![](preview/favorites-filled.png) |
 
 移动端：
 
-| 首页 | 详情 | 收藏空态 |
+| 今日简报 | 全部通知 | 详情 |
 | --- | --- | --- |
-| ![](preview/home-mobile.png) | ![](preview/detail-mobile.png) | ![](preview/favorites-empty.png) |
+| ![](preview/brief-mobile.png) | ![](preview/home-mobile.png) | ![](preview/detail-mobile.png) |
 
-> 截图对应 v0.2。截图内容为 **Mock 模式的虚构示例数据**，页面顶部有黄色提示条标识。
+> 简报截图为 **Mock 模式的虚构示例数据**，页面顶部有黄色提示条标识；其余截图含真实数据模式。
 
 ## 已实现的功能
 
-**检索与筛选**
+**AI 今日简报（首页）**
+- 首屏直接给结论：从全部通知里算出「7 天内截止 / 近 7 天新增 / 截止待核实」三个数字，点击即可下钻
+- 「优先处理」只列还能行动的 3 条，卡片上直接给出倒计时、下一步报名方式、参与对象，不必点进详情再找
+- 其余通知收进「最近发布」标题流；需要深度检索时再进入「全部通知」页
+- 所有行动文案都取自 AI 提取字段，无依据一律显示「待核实」，并附「看依据」直达原文证据
+
+**检索与筛选（全部通知页）**
 - 关键词搜索（标题 / 摘要 / 分类），支持空结果引导
 - 分类、来源、截止状态（7 天内 / 未截止 / 已截止 / 待核实）三重筛选
 - 排序：最近截止优先（默认，已截止沉底、无截止日期最后）、最新发布优先
@@ -64,13 +70,13 @@
 .
 ├── frontend/              # 前端工程（Vue 3 + Vite + TS）
 │   ├── src/
-│   │   ├── api/           # 接口层：notices / sources / request，含 Mock 实现
-│   │   ├── components/    # SearchBar / FilterPanel / NoticeCard / DeadlineBadge / EmptyState
-│   │   ├── views/         # 首页 / 详情 / 信息源 / 收藏 / 关于
-│   │   ├── utils/         # 日期与截止状态、排序、正文高亮、本地存储
+│   │   ├── api/           # 接口层：notices / sources / brief / request，含 Mock 实现
+│   │   ├── components/    # BriefActionCard / SearchBar / FilterPanel / NoticeCard / DeadlineBadge / EmptyState
+│   │   ├── views/         # 今日简报 / 全部通知 / 详情 / 信息源 / 收藏 / 关于
+│   │   ├── utils/         # 日期与截止状态、简报行动提取、排序、正文高亮、本地存储
 │   │   ├── types/         # 前后端共用的数据类型（唯一事实来源）
 │   │   └── styles/        # 设计变量与全局样式
-│   └── tests/             # Vitest 单元测试（8 个文件 / 61 个用例）
+│   └── tests/             # Vitest 单元测试（9 个文件 / 72 个用例）
 ├── backend/               # 后端工程（FastAPI + 采集适配器 + AI 解析 + 定时同步）
 │   ├── app/               # api / models / crawlers / services / jobs
 │   └── tests/             # pytest（22 个用例，含真实 HTML 夹具）
@@ -91,7 +97,7 @@ uvicorn app.main:app --port 8000
 cd frontend
 npm install
 npm run dev       # http://localhost:5173
-npm run test      # 单元测试（61 个用例）
+npm run test      # 单元测试（72 个用例）
 npm run build     # 类型检查 + 生产构建
 ```
 
@@ -106,7 +112,7 @@ cd frontend
 npm run test
 ```
 
-覆盖范围：截止状态与日期计算、列表排序、关键词高亮切分、收藏与订阅的本地存储、Mock 检索/筛选/分页行为、`NoticeCard` 组件渲染与事件、以及示例数据自检（保证每条「原文依据」都能在正文中找到）。用例与手工测试记录见 [`docs/前端测试与用户反馈记录.md`](docs/前端测试与用户反馈记录.md)。
+覆盖范围：截止状态与日期计算、简报行动文案与倒计时提取、列表排序、关键词高亮切分、收藏与订阅的本地存储、Mock 检索/筛选/分页行为、`NoticeCard` 组件渲染与事件、以及示例数据自检（保证每条「原文依据」都能在正文中找到）。用例与手工测试记录见 [`docs/前端测试与用户反馈记录.md`](docs/前端测试与用户反馈记录.md)。
 
 ## 分工
 
