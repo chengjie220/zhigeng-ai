@@ -132,6 +132,11 @@ async function load() {
     // 切换通知时重置正文展开与高亮状态
     bodyExpanded.value = false
     activeEvidence.value = ''
+    // 从简报「看依据」跳转过来时，详情是异步渲染的，需在数据到位后再定位一次
+    if (route.hash === '#evidence') {
+      await nextTick()
+      document.getElementById('evidence')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
   } catch (e) {
     if (e instanceof Error && e.message === 'NOT_FOUND') {
       notFound.value = true
@@ -260,7 +265,7 @@ watch(
       </section>
 
       <!-- 第三部分：原文依据 -->
-      <section class="section zg-card">
+      <section id="evidence" class="section zg-card">
         <h2 class="section-title">原文依据</h2>
         <template v-if="detail.evidence && Object.keys(detail.evidence).length">
           <div v-for="(text, field) in detail.evidence" :key="field" class="evidence-item">

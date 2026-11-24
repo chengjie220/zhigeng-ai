@@ -6,8 +6,14 @@ const router = createRouter({
     {
       path: '/',
       name: 'home',
+      component: () => import('@/views/BriefView.vue'),
+      meta: { title: '今日简报' },
+    },
+    {
+      path: '/notices',
+      name: 'notices',
       component: () => import('@/views/HomeView.vue'),
-      meta: { title: '校园机会' },
+      meta: { title: '全部通知' },
     },
     {
       path: '/notice/:id',
@@ -36,7 +42,8 @@ const router = createRouter({
     // 未匹配路径回首页
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
-  scrollBehavior() {
+  scrollBehavior(to) {
+    if (to.hash) return { el: to.hash, behavior: 'smooth', top: 72 }
     return { top: 0 }
   },
 })

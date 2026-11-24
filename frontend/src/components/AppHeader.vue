@@ -32,7 +32,10 @@ function closeMenu() {
       </button>
 
       <nav class="nav" :class="{ open: menuOpen }">
-        <router-link to="/" :class="{ active: route.path === '/' }" @click="closeMenu">首页</router-link>
+        <router-link to="/" :class="{ active: route.path === '/' }" @click="closeMenu">今日简报</router-link>
+        <router-link to="/notices" :class="{ active: route.path === '/notices' }" @click="closeMenu">
+          全部通知
+        </router-link>
         <router-link to="/favorites" :class="{ active: route.path === '/favorites' }" @click="closeMenu">
           我的收藏
         </router-link>
