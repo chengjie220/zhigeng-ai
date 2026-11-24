@@ -41,13 +41,24 @@ python -m pytest tests/ -q
   报名方式/要求/分类），保证链路可演示、可测试。
 - **真实性约束**：没有依据的字段返回 null（前端显示「待核实」）；证据片段必须能回文匹配
   否则字段作废；发布日期不冒充截止日期；原文没写时分不补 23:59。
-- 每次解析记录进 `ai_runs`（模型名、状态、耗时、错误），可追溯。
+- **分类专属字段**：category 为竞赛/公示/讲座/活动/实践五选一；按类产出 `extra`
+  （公示期与异议反馈、主讲人与地点、赛事级别与团队规模等）。LLM 的 extra 也走回文校验，
+  不在原文中的值直接丢弃；规则路径的 extra 全部由正则从正文命中。
+- 每次解析记录进 `ai_runs`（模型名、状态、耗时、错误），可追溯；Prompt 版本记录为 `v2`。
+- 已有数据库升级时 `init_db()` 会轻量补列（`notices.extra_json`、`sources.is_custom`），不重建数据。
 
 ## API（与前端契约一致，见 `frontend/README.md`）
 
 `GET /api/v1/sources` · `GET /api/v1/notices`（q/category/source_id/source_ids/deadline_status/sort/page/page_size）
-`GET /api/v1/notices/{id}` · `GET /api/v1/notices/{id}/evidence` · `GET /api/v1/stats` · `GET /api/v1/health`
+`GET /api/v1/notices/{id}`（含 `extra`）· `GET /api/v1/notices/{id}/evidence` · `GET /api/v1/stats` · `GET /api/v1/health`
 `POST /api/v1/admin/sync`（手动触发同步，演示用）
+
+信息源发现与自定义添加：
+
+`GET /api/v1/sources/search?q=关键词`：调用 Bing 搜索校园网站候选（只读，返回标题/网址/摘要/域名）。
+`GET /api/v1/sources/probe?url=...`：抓取目标页，判断是否像通知列表页，返回站点名与最多 5 条样例标题。
+`POST /api/v1/sources`：写入自定义来源（`name` / `url` / `content_types`），使用 `generic` 通用适配器，
+列表地址从数据库读取；下一次定时同步开始采集。`is_custom` 字段用于区分预置来源。
 
 `deadline_status`：urgent（7 天内）/ upcoming（7 天后）/ expired / unknown；`sort`：deadline / published。
 排序语义与前端 `utils/noticeSort.ts` 一致：未截止升序 → 已截止（刚过期在前）→ 无日期最后。
@@ -76,4 +87,6 @@ API 集成（筛选/排序/详情/证据/404）。
 
 - 规则降级提取的字段质量低于 LLM，演示时可说明两种模式；关键字段均附原文依据可核验。
 - 校园站点 HTML 结构若改版，对应适配器需调整（夹具测试可快速回归）。
+- 自定义来源使用通用启发式适配器，命中率低于专用适配器；探测接口只做预判，最终以同步结果为准。
+- 联网搜索依赖 Bing 可访问；不可达时返回空候选，前端会引导用户直接粘贴网址。
 - 第一版无登录/权限，`/admin/sync` 仅限内网演示使用。
