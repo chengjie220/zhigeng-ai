@@ -27,6 +27,22 @@ export function pickActionText(detail: NoticeDetail | null, category?: string): 
     if (Array.isArray(feedback) && feedback.length) return feedback.join('；')
     return '异议反馈方式待核实，请查看原文'
   }
+  if (category === '升学就业') {
+    const method = detail.application_method?.trim()
+    if (method) return method
+    const admission = detail.extra?.['准考证打印']
+    if (typeof admission === 'string' && admission.trim()) return `准考证：${admission}`
+    return '报名安排待核实，请查看原文'
+  }
+  if (category === '选课成绩' || category === '学籍毕业') {
+    const task = detail.extra?.['办理事项']
+    if (typeof task === 'string' && task.trim()) return task
+  }
+  if (category === '招投标') {
+    const feedback = detail.extra?.['异议反馈']
+    if (typeof feedback === 'string' && feedback.trim()) return feedback
+    return '异议方式待核实，请查看原文'
+  }
   const method = detail.application_method?.trim()
   if (method) return method
   const requirements = (detail.requirements ?? []).filter((r) => r?.trim())

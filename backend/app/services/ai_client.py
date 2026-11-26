@@ -19,12 +19,12 @@ from pydantic import BaseModel, Field, ValidationError
 from app.config import get_settings
 from app.services.extract import parse_cn_date
 
-PROMPT_VERSION = "v2"
+PROMPT_VERSION = "v5"
 
 SYSTEM_PROMPT = (
     "你是高校通知信息抽取器。只从给定正文中提取信息，禁止编造。"
     "输出一个 JSON 对象，字段："
-    "category(竞赛/公示/讲座/活动/实践 五选一)、summary(不超过100字的摘要)、"
+    "category(竞赛/公示/讲座/活动/实践/升学就业 六选一，考研、考公、考编、招聘归升学就业)、summary(不超过100字的摘要)、"
     "audience(字符串数组，如[\"在校本科生\"])、"
     "deadline_date(报名/参与截止日期或公示期截止日，格式YYYY-MM-DD，没有则null)、"
     "deadline_time(截止具体时分，格式HH:MM，原文没写则null)、"
@@ -32,7 +32,8 @@ SYSTEM_PROMPT = (
     "extra(对象：按分类提取专属字段，键必须是原文用词——"
     "竞赛可含『级别』『团队规模』；公示可含『公示对象』『异议反馈』『公示单位』；"
     "讲座可含『时间』『地点』『主讲人』『主办单位』；"
-    "活动可含『时间地点』『主办单位』；实践可含『实践地点』『服务时长』。"
+    "活动可含『时间地点』『主办单位』；实践可含『实践地点』『服务时长』；"
+    "升学就业可含『考试时间』『招录单位』『准考证打印』；考试安排可含『考试时间』『考试地点』『准考证打印』；选课成绩可含『办理事项』『平台入口』『考核时间』；学籍毕业可含『办理事项』『所需材料』；招投标可含『采购标的』『中选候选人』『异议反馈』。"
     "只填原文明确写出的，没写就不要放进 extra)、"
     "evidence(对象：为deadline_date/application_method/audience各给一句能佐证的原文片段)。"
     "注意：发布时间不是截止日期；evidence里的片段必须逐字来自原文。"
@@ -96,8 +97,25 @@ _TIME = re.compile(r"([01]?\d|2[0-3]):([0-5]\d)")
 _CATEGORY_RULES = [
     ("公示", re.compile(r"公示|拟获奖|拟推荐|名单公示|异议")),
     ("竞赛", re.compile(r"竞赛|比赛|大赛|选拔赛|挑战赛|评比|评选")),
+    # 党课带「培训」二字，须先于讲座命中
+    ("党团事务", re.compile(r"党校|党课|入党积极分子|发展对象|党支部|团委|团员|主题团日")),
     ("讲座", re.compile(r"讲座|报告会|论坛|培训|分享会|沙龙")),
-    ("实践", re.compile(r"志愿|社会实践|三下乡|支教|服务队|实习|实践活动")),
+    # 招聘会是可参加的活动，先于升学就业命中；考研仍归升学就业
+    ("就业指导", re.compile(r"就业指导|公考|留学|简历|访企拓岗|企业参访|招聘会|梦想企航")),
+    # 考研先于「考试安排」命中，避免研究生招生考试被误判成普通考试
+    ("升学就业", re.compile(
+        r"考研|研究生招生|硕士研究生|推免|考公|公务员|国考|省考|选调生|"
+        r"事业单位|事业编|招考|招录|招聘|校招|报名确认"
+    )),
+    ("考试安排", re.compile(r"四六级|口语考试|考试|期中|期末|准考证|考室|候考")),
+    ("选课成绩", re.compile(r"选课|成绩|课表|选修课|通识|慕课|智慧树|尔雅|重修|学分")),
+    ("学籍毕业", re.compile(
+        r"学籍|转专业|休学|复学|毕业设计|毕业论文|在读证明|学历|学位|保留入学资格"
+    )),
+    ("创新创业", re.compile(r"创新创业|大学生创新训练|大创|科创|启智计划|萤火虫计划|项目申报|结题验收")),
+    ("招投标", re.compile(r"比选|招标|采购|中标|磋商|询价|中选候选人")),
+    ("奖惩处分", re.compile(r"处分|违纪|警告|表彰|奖励|评优|荣誉称号")),
+    ("实践", re.compile(r"志愿|社会实践|三下乡|支教|服务队|实习|实践活动|劳动教育")),
 ]
 _AUDIENCE_RULES = [
     ("在校本科生", re.compile(r"本科生")),
@@ -181,6 +199,101 @@ def extract_category_extra(category: str, title: str, body: str) -> dict[str, st
         host = _first_group(re.compile(r"主办(?:单位)?\s*[:：]?\s*([^，。；\n]{2,30})"), text)
         if host:
             extra["主办单位"] = host
+
+    elif category == "升学就业":
+        exam_time = _sentence_with(sentences, re.compile(r"考试时间|笔试时间|初试时间|面试时间"), 90)
+        if exam_time:
+            extra["考试时间"] = exam_time
+        unit = _first_group(
+            re.compile(r"(?:招录|招生|招聘)单位\s*[:：]?\s*([^，。；\n]{2,30})"), text
+        )
+        if unit:
+            extra["招录单位"] = unit
+        admission = _sentence_with(sentences, re.compile(r"准考证|报名确认"), 100)
+        if admission:
+            extra["准考证打印"] = admission
+
+    elif category == "创新创业":
+        name = _sentence_with(sentences, re.compile(r"项目名称|项目名称为|项目："), 90)
+        if name:
+            extra["项目名称"] = name
+        level = _first_group(re.compile(r"国家级|省级|市级|校级|院级"), text)
+        if level:
+            extra["项目级别"] = level
+
+    elif category == "就业指导":
+        when = _sentence_with(sentences, re.compile(r"活动时间|于\d+月\d+日"), 90)
+        if when:
+            extra["活动时间"] = when
+        place = _sentence_with(sentences, re.compile(r"活动地点|地点|教室|报告厅"), 90)
+        if place:
+            extra["活动地点"] = place
+
+    elif category == "党团事务":
+        task = _sentence_with(sentences, re.compile(r"培训|党课|学习|发展对象|积极分子"), 100)
+        if task:
+            extra["办理事项"] = task
+        who = _sentence_with(sentences, re.compile(r"对象|面向|参加人员"), 90)
+        if who:
+            extra["参与对象"] = who
+        when = _sentence_with(sentences, re.compile(r"时间|地点"), 90)
+        if when:
+            extra["时间地点"] = when
+
+    elif category == "奖惩处分":
+        who = _sentence_with(sentences, re.compile(r"学生|同学|给予"), 90)
+        if who:
+            extra["处理对象"] = who
+        decision = _sentence_with(sentences, re.compile(r"处分|警告|表彰|奖励|称号"), 100)
+        if decision:
+            extra["处理决定"] = decision
+        unit = _first_group(re.compile(r"发布单位\s*[:：]?\s*([^，。；\n]{2,30})"), text)
+        if unit:
+            extra["发布单位"] = unit
+
+    elif category == "考试安排":
+        exam_time = _sentence_with(sentences, re.compile(r"考试时间|举行|开考"), 90)
+        if exam_time:
+            extra["考试时间"] = exam_time
+        place = _sentence_with(sentences, re.compile(r"考试地点|考点|教学楼"), 90)
+        if place:
+            extra["考试地点"] = place
+        admission = _sentence_with(sentences, re.compile(r"准考证|打印"), 100)
+        if admission:
+            extra["准考证打印"] = admission
+
+    elif category == "选课成绩":
+        task = _sentence_with(sentences, re.compile(r"务必|选修课学习|完成课程|成绩"), 100)
+        if task:
+            extra["办理事项"] = task
+        platform = _first_group(
+            re.compile(r"(?:登录|网址|平台|入口)\s*[:：]?\s*(https?://[^\s，。；]+|[\u4e00-\u9fa5A-Za-z0-9]{2,20}平台)"),
+            text,
+        )
+        if platform:
+            extra["平台入口"] = platform
+        check = _sentence_with(sentences, re.compile(r"考核时间|考试时间为"), 90)
+        if check:
+            extra["考核时间"] = check
+
+    elif category == "学籍毕业":
+        task = _sentence_with(sentences, re.compile(r"办理|申请|转专业|休学|复学|毕业设计|毕业论文|证明"), 100)
+        if task:
+            extra["办理事项"] = task
+        material = _sentence_with(sentences, re.compile(r"材料|提交|携带|附件"), 100)
+        if material:
+            extra["所需材料"] = material
+
+    elif category == "招投标":
+        subject = _first_group(re.compile(r"(?:项目|采购)\s*[:：]?\s*([^，。；\n]{4,40})"), text)
+        if subject:
+            extra["采购标的"] = subject
+        winner = _sentence_with(sentences, re.compile(r"中选候选人|中标人|成交供应商"), 100)
+        if winner:
+            extra["中选候选人"] = winner
+        feedback = _sentence_with(sentences, re.compile(r"异议|质疑|反馈"), 100)
+        if feedback:
+            extra["异议反馈"] = feedback
 
     elif category == "实践":
         place = _first_group(re.compile(r"地点\s*[:：]?\s*([^，。；\n]{2,40})"), text)

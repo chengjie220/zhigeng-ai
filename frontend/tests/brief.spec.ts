@@ -70,6 +70,16 @@ describe('简报行动文案', () => {
     expect(pickActionText(detail(), '公示')).toBe('异议反馈方式待核实，请查看原文')
   })
 
+  it('升学就业类优先展示报名方式，其次提示准考证打印', () => {
+    expect(pickActionText(detail({ application_method: '研招网网上报名' }), '升学就业')).toBe(
+      '研招网网上报名',
+    )
+    expect(
+      pickActionText(detail({ extra: { '准考证打印': '12 月 12 日起下载' } }), '升学就业'),
+    ).toBe('准考证：12 月 12 日起下载')
+    expect(pickActionText(detail(), '升学就业')).toBe('报名安排待核实，请查看原文')
+  })
+
   it('参与对象最多展示前三项', () => {
     expect(
       pickAudienceText(detail({ audience: ['本科生', '研究生', '教师', '校友'] })),

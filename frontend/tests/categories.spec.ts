@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { NoticeDetail } from '@/types/notice'
 import {
   CATEGORIES,
+  GROUPS,
   buildCategoryFields,
   getCategorySpec,
+  getGroupCategories,
   resolveFieldValue,
 } from '@/config/categories'
 import { mockProbeSource, mockSourceSearchResults } from '@/api/mock/data'
@@ -33,9 +35,58 @@ function detail(extra: Record<string, string | string[]>): NoticeDetail {
 }
 
 describe('分类专属字段', () => {
-  it('五类齐全，且每类都有自己的字段清单', () => {
-    expect(CATEGORIES.map((c) => c.key)).toEqual(['竞赛', '公示', '讲座', '活动', '实践'])
+  it('十四类齐全，且每类都有自己的字段清单', () => {
+    expect(CATEGORIES.map((c) => c.key)).toEqual([
+      '竞赛', '创新创业', '升学就业', '就业指导', '实践', '活动', '讲座',
+      '考试安排', '选课成绩', '学籍毕业', '党团事务', '公示', '招投标', '奖惩处分',
+    ])
     for (const spec of CATEGORIES) expect(spec.fields.length).toBeGreaterThanOrEqual(4)
+  })
+
+  it('按真实教务内容分成三组，每组类别完整', () => {
+    expect(GROUPS.map((g) => g.key)).toEqual(['成长机会', '学业事务', '公告信息'])
+    expect(getGroupCategories('成长机会').map((c) => c.key)).toEqual([
+      '竞赛', '创新创业', '升学就业', '就业指导', '实践', '活动', '讲座',
+    ])
+    expect(getGroupCategories('学业事务').map((c) => c.key)).toEqual([
+      '考试安排', '选课成绩', '学籍毕业', '党团事务',
+    ])
+    expect(getGroupCategories('公告信息').map((c) => c.key)).toEqual([
+      '公示', '招投标', '奖惩处分',
+    ])
+    for (const spec of CATEGORIES) {
+      expect(GROUPS.some((g) => g.key === spec.group), `${spec.key} 未归入任何组别`).toBe(true)
+    }
+  })
+
+  it('考试安排看时间与准考证，选课成绩看平台与考核时间', () => {
+    const exam = buildCategoryFields(
+      detail({ '考试时间': '11 月 28 日', '考试地点': '十教', '准考证打印': '11 月 27 日起' }),
+      '考试安排',
+      4,
+    )
+    expect(exam.map((f) => f.label)).toEqual(['考试时间', '考试地点', '准考证打印', '参考对象'])
+    const course = buildCategoryFields(
+      detail({ '办理事项': '完成线上学习', '平台入口': '智慧树', '考核时间': '12 月 21 日' }),
+      '选课成绩',
+      4,
+    )
+    expect(course.map((f) => f.label)).toEqual(['办理事项', '平台入口', '考核时间', '适用对象'])
+  })
+
+  it('升学就业类提取考试时间、招录单位和准考证，而不是赛事级别', () => {
+    const fields = buildCategoryFields(
+      detail({
+        '考试时间': '12 月 19 日至 20 日',
+        '招录单位': '成都大学研究生院',
+        '准考证打印': '12 月 12 日起下载',
+      }),
+      '升学就业',
+      4,
+    )
+    expect(fields.map((f) => f.label)).toEqual([
+      '考试时间', '招录/招生单位', '准考证打印', '报考对象',
+    ])
   })
 
   it('公示类优先展示公示对象与异议反馈，而不是报名方式', () => {

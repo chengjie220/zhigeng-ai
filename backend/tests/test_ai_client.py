@@ -33,6 +33,43 @@ def test_rule_extract_fields():
     assert "deadline_date" in parsed.evidence
 
 
+def test_rule_extract_study_and_exam_category():
+    """考研、考公类通知不再被兜底成「活动」，专属字段按原文提取。"""
+    body = (
+        "2027年全国硕士研究生招生考试报名公告。考试科目和考试时间如下。"
+        "网上报名截止时间为2026年12月4日22:00。"
+        "招录单位：成都大学研究生院。"
+        "准考证于12月12日起可自行下载打印。"
+    )
+    parsed = rule_extract("2027年全国硕士研究生招生考试报名公告", body, "2026-11-22")
+    assert parsed.category == "升学就业"
+    assert parsed.deadline_date == "2026-12-04"
+    assert parsed.extra.get("招录单位") == "成都大学研究生院"
+    assert "考试时间" in parsed.extra
+    assert "准考证" in parsed.extra["准考证打印"]
+
+
+def test_rule_extract_civil_service_exam_category():
+    parsed = rule_extract("关于2027年度公务员考试报名的通知", "本次招考面向应届毕业生。", "2026-11-22")
+    assert parsed.category == "升学就业"
+
+
+def test_rule_extract_categories_from_two_campus_sites():
+    """教务处与学院官网真实栏目内容都能落到对应类别。"""
+    cases = [
+        ("关于启动第六届萤火虫计划项目的通知", "项目申请截止时间为2026年12月5日。", "创新创业"),
+        ("第63期公考1V1公益咨询活动通知", "请扫描二维码在线预约。", "就业指导"),
+        ("关于举办第69期分党校培训的通知", "培训面向入党积极分子。", "党团事务"),
+        ("关于给予学生严重警告处分的决定", "经研究决定给予处分。", "奖惩处分"),
+        ("成都大学智慧课程采购项目比选公告", "比选申请文件截止时间11月27日。", "招投标"),
+        ("关于督促智慧树平台选修课学习的通知", "请于12月20日前完成学习。", "选课成绩"),
+        ("关于开展2027届本科毕业设计选题工作的通知", "请于12月2日前提交选题。", "学籍毕业"),
+    ]
+    for title, body, expected in cases:
+        parsed = rule_extract(title, body, "2026-11-20")
+        assert parsed.category == expected, (title, parsed.category)
+
+
 def test_rule_extract_does_not_use_publish_date_as_deadline():
     body = "发布时间：2026年11月17日。本通知自发布之日起施行。"
     parsed = rule_extract("某通知", body, "2026-11-17")

@@ -26,25 +26,38 @@ const isPlaceholder = computed(() => props.action.actionText.includes('待核实
 
 /** 不同类别看不同字段：公示看公示对象/异议反馈，讲座看主讲人/地点，竞赛看级别/团队规模 */
 const categoryFields = computed(() =>
-  buildCategoryFields(props.action.detail, props.action.notice.category, 4).filter(
-    // 公示期已经在顶部与倒计时里展示，不重复占位
-    (f) =>
-      !(
-        props.action.notice.category === '公示' &&
-        (f.label === '公示期至' || f.label === '异议反馈')
-      ),
+  buildCategoryFields(props.action.detail, props.action.notice.category, 6).filter(
+    (f) => {
+      const category = props.action.notice.category
+      // 已在顶部/上方展示过的内容不再重复占位
+      if (category === '公示' && (f.label === '公示期至' || f.label === '异议反馈')) return false
+      if (category === '升学就业' && ['报名截止', '报名方式', '报考对象'].includes(f.label)) {
+        return false
+      }
+      if (category === '考试安排' && ['办理截止', '准考证打印'].includes(f.label)) return false
+      if (category === '选课成绩' && ['完成截止', '办理事项'].includes(f.label)) return false
+      if (category === '学籍毕业' && ['办理截止', '办理事项'].includes(f.label)) return false
+      if (category === '招投标' && f.label === '异议截止') return false
+      return true
+    },
   ).slice(0, 3),
 )
 
 const actionLabel = computed(() => {
-  if (props.action.notice.category === '公示') return '异议'
-  if (props.action.notice.category === '讲座') return '参与'
+  const category = props.action.notice.category
+  if (category === '公示' || category === '招投标') return '异议'
+  if (category === '讲座') return '参与'
+  if (category === '考试安排') return '应考'
+  if (category === '选课成绩' || category === '学籍毕业') return '要办'
   return '下一步'
 })
 
 const countdownLabel = computed(() => {
   if (props.action.daysLeft === null) return '待核实'
   if (props.action.notice.category === '公示') return '公示期至'
+  if (props.action.notice.category === '升学就业') {
+    return props.action.daysLeft === 0 ? '今天报名' : '天后报名'
+  }
   if (props.action.daysLeft === 0) return '天截止'
   return '天后截止'
 })
