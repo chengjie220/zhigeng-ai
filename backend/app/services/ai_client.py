@@ -19,12 +19,13 @@ from pydantic import BaseModel, Field, ValidationError
 from app.config import get_settings
 from app.services.extract import parse_cn_date
 
-PROMPT_VERSION = "v5"
+PROMPT_VERSION = "v6"
 
 SYSTEM_PROMPT = (
     "你是高校通知信息抽取器。只从给定正文中提取信息，禁止编造。"
     "输出一个 JSON 对象，字段："
-    "category(竞赛/公示/讲座/活动/实践/升学就业 六选一，考研、考公、考编、招聘归升学就业)、summary(不超过100字的摘要)、"
+    "category(优先从竞赛/创新创业/升学就业/就业指导/实践/活动/讲座/考试安排/选课成绩/学籍毕业/党团事务/公示/招投标/奖惩处分 十四类中选最贴切的一类；"
+    "考研、考公、考编、招聘归升学就业。若都不贴切，用原文里的核心事务名作为新类别，例如『馆务公告』『后勤服务』，不要硬塞进『活动』)、summary(不超过100字的摘要)、"
     "audience(字符串数组，如[\"在校本科生\"])、"
     "deadline_date(报名/参与截止日期或公示期截止日，格式YYYY-MM-DD，没有则null)、"
     "deadline_time(截止具体时分，格式HH:MM，原文没写则null)、"
@@ -319,7 +320,8 @@ def rule_extract(title: str, body: str, published_at: str | None) -> ParsedNotic
             parsed.category = name
             break
     if not parsed.category:
-        parsed.category = "活动"
+        # 新网站的未知内容不能硬塞进「活动」，否则前端无法按内容重新分类
+        parsed.category = "其他通知"
 
     # 分类专属字段：每一类看的东西不一样
     parsed.extra = extract_category_extra(parsed.category, title, body)

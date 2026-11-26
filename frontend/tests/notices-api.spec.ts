@@ -14,13 +14,13 @@ afterEach(() => {
 describe('getNotices（Mock 数据）', () => {
   it('默认按最近截止优先排序，无截止日期的排最后', async () => {
     const resp = await getNotices({ page_size: 20 })
-    expect(resp.items.map((n) => n.id)).toEqual([5, 10, 13, 3, 15, 6, 16, 12, 9, 2, 14, 8, 1, 11, 4, 7, 17])
-    expect(resp.total).toBe(17)
+    expect(resp.items.map((n) => n.id)).toEqual([5, 10, 13, 3, 15, 6, 16, 12, 9, 2, 14, 8, 1, 18, 11, 4, 7, 19, 17])
+    expect(resp.total).toBe(19)
   })
 
   it('sort=published 时按发布时间倒序', async () => {
     const resp = await getNotices({ sort: 'published', page_size: 20 })
-    expect(resp.items.map((n) => n.id)).toEqual([10, 11, 12, 13, 3, 9, 6, 1, 5, 2, 14, 17, 8, 4, 15, 16, 7])
+    expect(resp.items.map((n) => n.id)).toEqual([18, 19, 10, 11, 12, 13, 3, 9, 6, 1, 5, 2, 14, 17, 8, 4, 15, 16, 7])
   })
 
   it('关键词命中标题或摘要', async () => {
@@ -69,7 +69,7 @@ describe('getNotices（Mock 数据）', () => {
   it('分页正确切片，total 为过滤后的总数', async () => {
     const resp = await getNotices({ page: 2, page_size: 3 })
     expect(resp.items.map((n) => n.id)).toEqual([3, 15, 6])
-    expect(resp.total).toBe(17)
+    expect(resp.total).toBe(19)
     expect(resp.page).toBe(2)
     expect(resp.page_size).toBe(3)
   })

@@ -24,6 +24,10 @@ export interface NoticeEvidence {
 export interface NoticeAttachment {
   name: string
   url: string
+  /** 可直接展示的附件正文；后端解析成功或 Mock 数据时提供 */
+  content?: string
+  /** 无法直接解析时说明原因 */
+  unsupported?: string
 }
 
 /** 通知详情（对应 GET /api/v1/notices/{id}） */

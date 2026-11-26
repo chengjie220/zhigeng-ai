@@ -8,17 +8,24 @@ import EmptyState from '@/components/EmptyState.vue'
 import { getBriefData, type BriefData } from '@/api/brief'
 import { formatDate } from '@/utils/date'
 import { briefHeadline } from '@/utils/brief'
-import { CATEGORY_KEYS, getCategorySpec } from '@/config/categories'
+import { getCategorySpec } from '@/config/categories'
 import { getFavoriteIds, toggleFavorite as toggleFavStore } from '@/utils/favorites'
+import { isCategoryFocused, toggleFocusedCategory } from '@/utils/categoryPrefs'
 
 const route = useRoute()
 const router = useRouter()
+/** 新网站带来的类别不在预置 14 类里，也照样能打开它的分类页 */
 const category = computed(() => {
   const raw = route.params.category
-  const value = typeof raw === 'string' ? raw : ''
-  return CATEGORY_KEYS.includes(value as (typeof CATEGORY_KEYS)[number]) ? value : ''
+  if (typeof raw !== 'string' || !raw.trim()) return ''
+  try {
+    return decodeURIComponent(raw)
+  } catch {
+    return raw
+  }
 })
 const categorySpec = computed(() => (category.value ? getCategorySpec(category.value) : null))
+const subscribed = ref(false)
 const data = ref<BriefData | null>(null)
 const loading = ref(true)
 const error = ref('')
@@ -32,11 +39,19 @@ async function load() {
   error.value = ''
   try {
     data.value = await getBriefData(category.value || undefined)
+    subscribed.value = category.value ? isCategoryFocused(category.value) : false
   } catch {
     error.value = '简报加载失败，请检查后端服务后重试'
   } finally {
     loading.value = false
   }
+}
+
+function onToggleSubscribe() {
+  if (!category.value) return
+  const now = toggleFocusedCategory(category.value)
+  subscribed.value = now
+  ElMessage.success(now ? '已订阅，首页会放大显示这一类' : '已取消订阅，首页不再显示这一类')
 }
 
 function goSearch() {
@@ -71,6 +86,9 @@ onMounted(load)
           共 {{ data.total }} 条{{ category ? `${category}通知` : '通知' }}，按截止时间排序
         </p>
         <p v-else class="brief-sub">把散落的校园通知，整理成你今天该做的事</p>
+        <el-button v-if="category" size="small" :type="subscribed ? 'default' : 'primary'" plain class="subscribe-btn" @click="onToggleSubscribe">
+          {{ subscribed ? '已订阅 · 点击取消' : '订阅到首页' }}
+        </el-button>
         <div class="brief-search">
           <el-input
             v-model="keyword"
@@ -216,9 +234,12 @@ onMounted(load)
   letter-spacing: 0.5px;
 }
 .brief-sub {
-  margin: 8px 0 20px;
+  margin: 8px 0 12px;
   color: var(--zg-text-secondary);
   font-size: 15px;
+}
+.subscribe-btn {
+  margin-bottom: 8px;
 }
 .brief-search {
   width: 100%;

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { CATEGORY_KEYS } from '@/config/categories'
 import { mockNotices, mockSources } from '@/api/mock/data'
 import { containsText } from '@/utils/highlight'
 
@@ -33,14 +34,26 @@ describe('示例数据完整性', () => {
     }
   })
 
-  it('分类取值在筛选下拉的可选范围内', () => {
-    const allowed = [
-      '竞赛', '公示', '讲座', '实践', '活动', '升学就业',
-      '考试安排', '选课成绩', '学籍毕业', '招投标',
-      '创新创业', '就业指导', '党团事务', '奖惩处分',
-    ]
-    for (const n of mockNotices) {
-      expect(allowed, `通知 ${n.id} 的分类「${n.category}」不在筛选项内`).toContain(n.category)
+  it('示例附件都能就地读取，不需要真的访问外部链接', () => {
+    const withAttachments = mockNotices.filter((n) => n.attachments.length > 0)
+    expect(withAttachments.length).toBeGreaterThan(0)
+    for (const notice of withAttachments) {
+      for (const attachment of notice.attachments) {
+        expect(attachment.content, `通知 ${notice.id} 的附件「${attachment.name}」没有示例内容`).toBeTruthy()
+      }
     }
+  })
+
+  it('分类取值非空，预置类别与动态类别各有来源', () => {
+    const discovered = ['读者服务', '馆务公告']
+    for (const n of mockNotices) {
+      expect(n.category, `通知 ${n.id} 缺少分类`).toBeTruthy()
+      expect(
+        CATEGORY_KEYS.includes(n.category as (typeof CATEGORY_KEYS)[number]) ||
+          discovered.includes(n.category),
+        `通知 ${n.id} 的分类「${n.category}」既不是预置类别也不是示例动态类别`,
+      ).toBe(true)
+    }
+    expect(mockNotices.some((n) => discovered.includes(n.category))).toBe(true)
   })
 })

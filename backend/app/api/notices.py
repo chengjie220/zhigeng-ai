@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Notice, Source
 from app.schemas import NoticeAttachment, NoticeDetail, NoticeItem, NoticeListResp
+from app.services.attachment_text import read_attachment_text
 
 router = APIRouter()
 
@@ -138,6 +139,21 @@ def get_notice(notice_id: int, db: Session = Depends(get_db)):
     if row is None:
         raise HTTPException(status_code=404, detail="notice not found")
     return _to_detail(row[0], row[1])
+
+
+@router.get("/notices/{notice_id}/attachments/{index}/text")
+def get_attachment_text(notice_id: int, index: int, db: Session = Depends(get_db)):
+    """就地读取附件文字，返回 content 或 unsupported 原因。"""
+    notice = db.get(Notice, notice_id)
+    if notice is None:
+        raise HTTPException(status_code=404, detail="notice not found")
+    attachments = _loads(notice.attachments_json, [])
+    if index < 0 or index >= len(attachments) or not isinstance(attachments[index], dict):
+        raise HTTPException(status_code=404, detail="attachment not found")
+    item = attachments[index]
+    if not item.get("url"):
+        raise HTTPException(status_code=404, detail="attachment not found")
+    return read_attachment_text(str(item["url"]), str(item.get("name") or "附件"))
 
 
 @router.get("/notices/{notice_id}/evidence")

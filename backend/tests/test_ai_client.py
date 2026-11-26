@@ -70,6 +70,11 @@ def test_rule_extract_categories_from_two_campus_sites():
         assert parsed.category == expected, (title, parsed.category)
 
 
+def test_rule_extract_keeps_unknown_content_out_of_generic_activity():
+    parsed = rule_extract("图书馆关于调整阅览室开放时间的公告", "开放时间临时调整。", "2026-11-24")
+    assert parsed.category == "其他通知"
+
+
 def test_rule_extract_does_not_use_publish_date_as_deadline():
     body = "发布时间：2026年11月17日。本通知自发布之日起施行。"
     parsed = rule_extract("某通知", body, "2026-11-17")

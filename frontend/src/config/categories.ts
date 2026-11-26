@@ -17,14 +17,14 @@ export type CategoryKey =
   | '招投标'
   | '奖惩处分'
 
-/** 组别：按「谁需要做什么」划分，首页只展示组别，点开再看具体类别 */
-export type GroupKey = '成长机会' | '学业事务' | '公告信息'
+/** 组别：按「谁需要做什么」划分；新网站带来未识别内容时动态追加「新发现」组 */
+export type GroupKey = '成长机会' | '学业事务' | '公告信息' | '新发现'
 
 export interface CategoryGroup {
   key: GroupKey
   description: string
   /** 组内类别，顺序即展示顺序 */
-  categories: CategoryKey[]
+  categories: string[]
 }
 
 export const GROUPS: CategoryGroup[] = [
@@ -55,7 +55,8 @@ export interface CategoryField {
 }
 
 export interface CategorySpec {
-  key: CategoryKey
+  /** 已配置类别是固定 14 类之一；新网站发现的类别保留原始名称 */
+  key: string
   group: GroupKey
   description: string
   /** 该类在正文里的识别关键词，后端规则提取使用同一份约定 */
@@ -253,12 +254,44 @@ export const CATEGORIES: CategorySpec[] = [
 
 export const CATEGORY_KEYS = CATEGORIES.map((c) => c.key)
 
-/** 兼容旧数据与 AI 误判：未知分类统一归到「活动」 */
-export function getCategorySpec(key: string | undefined): CategorySpec {
-  return CATEGORIES.find((c) => c.key === key) ?? CATEGORIES.find((c) => c.key === '活动')!
+/** 新网站带来的未知类别统一放入这一组，组本身不预置任何类别 */
+export const DISCOVERY_GROUP: CategoryGroup = {
+  key: '新发现',
+  description: '来自新网站，尚未匹配到既有类别',
+  categories: [],
 }
 
-/** 取某个组别下的类别配置 */
+/** 未知类别没有专属字段模板时，用这一套通用字段，避免误当成「活动」 */
+export const GENERIC_FIELDS: CategoryField[] = [
+  { key: 'deadline_date', label: '截止日期', type: 'date' },
+  { key: 'application_method', label: '参与方式', type: 'text' },
+  { key: 'audience', label: '参与对象', type: 'list' },
+  { key: 'extra.时间地点', label: '时间地点', type: 'text' },
+  { key: 'extra.主办单位', label: '主办单位', type: 'text' },
+]
+
+export function isKnownCategory(key: string | undefined): key is CategoryKey {
+  return CATEGORY_KEYS.includes(key as CategoryKey)
+}
+
+/**
+ * 取类别配置。已配置类别返回专属字段；未知类别保留原名称并降级到「新发现」组，
+ * 这样新网站的内容不会被错误塞进「活动」而丢失自己的身份。
+ */
+export function getCategorySpec(key: string | undefined): CategorySpec {
+  const found = CATEGORIES.find((c) => c.key === key)
+  if (found) return found
+  const name = (key ?? '').trim() || '其他通知'
+  return {
+    key: name,
+    group: '新发现',
+    description: `来自新网站的「${name}」通知，按内容自动归类`,
+    cues: [],
+    fields: GENERIC_FIELDS,
+  }
+}
+
+/** 取某个组别下的已配置类别 */
 export function getGroupCategories(group: GroupKey): CategorySpec[] {
   return CATEGORIES.filter((c) => c.group === group)
 }

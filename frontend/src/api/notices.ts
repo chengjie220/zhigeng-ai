@@ -114,6 +114,19 @@ export async function getNoticeEvidence(id: number): Promise<Record<string, stri
   return (await request.get(`/notices/${id}/evidence`)) as Record<string, string>
 }
 
+/** 读取单个附件的文字内容（Mock 模式由前端直接使用数据里自带的 content） */
+export async function getAttachmentText(
+  id: number,
+  index: number,
+): Promise<{ name: string; content: string; unsupported?: string }> {
+  if (USE_MOCK) throw new Error('MOCK_USE_INLINE_CONTENT')
+  return (await request.get(`/notices/${id}/attachments/${index}/text`)) as {
+    name: string
+    content: string
+    unsupported?: string
+  }
+}
+
 /** 通知统计（关于页展示用） */
 export async function getStats(): Promise<{
   total: number

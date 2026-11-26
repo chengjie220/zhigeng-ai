@@ -1,79 +1,71 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  CATEGORY_KEYS,
-  GROUPS,
-  getGroupCategories,
-  type CategoryKey,
-  type GroupKey,
-} from '@/config/categories'
 import { getNotices, getStats } from '@/api/notices'
 import { getSources } from '@/api/sources'
-import { getFocusedCategories, setFocusedCategories } from '@/utils/categoryPrefs'
+import {
+  buildDynamicCatalog,
+  defaultFocusKeys,
+  type DynamicCatalog,
+  type DynamicCategory,
+  type DynamicGroup,
+} from '@/utils/dynamicCategories'
+import {
+  getFocusedCategories,
+  hasFocusPreferences,
+  setFocusedCategories,
+} from '@/utils/categoryPrefs'
 import type { NoticeItem } from '@/types/notice'
 
-interface CategoryCard {
-  key: CategoryKey
-  total: number
-  urgent: number
-}
-
-interface GroupCard {
-  key: GroupKey
-  description: string
-  total: number
-  urgent: number
-  categories: CategoryCard[]
+interface VisibleGroup extends DynamicGroup {
+  categories: DynamicCategory[]
 }
 
 const router = useRouter()
 const loading = ref(true)
 const error = ref('')
-const groups = ref<GroupCard[]>([])
 const keyword = ref('')
 const sourceCount = ref(0)
 const total = ref(0)
-
-const urgentTotal = computed(() => groups.value.reduce((sum, g) => sum + g.urgent, 0))
-const focused = ref<CategoryKey[]>(getFocusedCategories())
-const drawerVisible = ref(false)
 const allItems = ref<NoticeItem[]>([])
 const urgentItems = ref<NoticeItem[]>([])
+const focused = ref<string[]>([])
+const draft = ref<string[]>([])
+const drawerVisible = ref(false)
+const popoverVisible = ref(false)
 
-/** 只按用户关注的类别聚合，切换关注无需重新请求接口 */
-function recompute() {
-  const watching = new Set<CategoryKey>(focused.value)
-  const totalByCategory = new Map<string, number>()
-  for (const n of allItems.value) {
-    if (watching.has(n.category as CategoryKey)) {
-      totalByCategory.set(n.category, (totalByCategory.get(n.category) ?? 0) + 1)
-    }
+/** 类别完全由当前已采集的通知推导：新增网站同步后首页自动重新分配 */
+const catalog = computed<DynamicCatalog>(() =>
+  buildDynamicCatalog(allItems.value, new Set(urgentItems.value.map((n) => n.id))),
+)
+const availableKeys = computed(() => catalog.value.categories.map((c) => c.key))
+const subscribedCategories = computed(() =>
+  catalog.value.categories.filter((c) => focused.value.includes(c.key)),
+)
+const otherCategories = computed(() =>
+  catalog.value.categories.filter((c) => !focused.value.includes(c.key)),
+)
+const visibleGroups = computed<VisibleGroup[]>(() =>
+  catalog.value.groups
+    .map((group) => ({
+      ...group,
+      categories: group.categories.filter((c) => focused.value.includes(c.key)),
+    }))
+    .filter((group) => group.categories.length > 0),
+)
+const urgentTotal = computed(() =>
+  subscribedCategories.value.reduce((sum, c) => sum + c.urgent, 0),
+)
+const noticesByCategory = computed(() => {
+  const map = new Map<string, NoticeItem[]>()
+  for (const notice of allItems.value) {
+    const key = catalog.value.categoryOf.get(notice.id)
+    if (!key) continue
+    if (!map.has(key)) map.set(key, [])
+    map.get(key)!.push(notice)
   }
-  const urgentByCategory = new Map<string, number>()
-  for (const n of urgentItems.value) {
-    if (watching.has(n.category as CategoryKey)) {
-      urgentByCategory.set(n.category, (urgentByCategory.get(n.category) ?? 0) + 1)
-    }
-  }
-
-  groups.value = GROUPS.map((group) => {
-    const categories: CategoryCard[] = getGroupCategories(group.key)
-      .filter((spec) => watching.has(spec.key))
-      .map((spec) => ({
-        key: spec.key,
-        total: totalByCategory.get(spec.key) ?? 0,
-        urgent: urgentByCategory.get(spec.key) ?? 0,
-      }))
-    return {
-      key: group.key,
-      description: group.description,
-      total: categories.reduce((sum, c) => sum + c.total, 0),
-      urgent: categories.reduce((sum, c) => sum + c.urgent, 0),
-      categories,
-    }
-  }).filter((group) => group.categories.length > 0)
-}
+  return map
+})
 
 async function load() {
   loading.value = true
@@ -82,14 +74,17 @@ async function load() {
     const [stats, sources, all, urgent] = await Promise.all([
       getStats(),
       getSources().catch(() => []),
-      getNotices({ sort: 'published', page_size: 100 }),
-      getNotices({ deadline_status: 'urgent', page_size: 100 }),
+      getNotices({ sort: 'published', page_size: 200 }),
+      getNotices({ deadline_status: 'urgent', page_size: 200 }),
     ])
     total.value = stats.total
     sourceCount.value = sources.length
     allItems.value = all.items
     urgentItems.value = urgent.items
-    recompute()
+    const available = catalog.value.categories.map((c) => c.key)
+    focused.value = hasFocusPreferences()
+      ? getFocusedCategories(available)
+      : defaultFocusKeys(catalog.value.categories)
   } catch {
     error.value = '分类数据加载失败，请稍后重试'
   } finally {
@@ -97,27 +92,57 @@ async function load() {
   }
 }
 
-function openFocusSettings() {
-  focused.value = getFocusedCategories()
+/** 即时保存的快捷订阅（下拉框、卡片取消订阅、其他类别的 +） */
+function persist(next: string[]) {
+  const keys = next.filter((key) => availableKeys.value.includes(key))
+  setFocusedCategories(keys)
+  focused.value = keys
+}
+
+function toggleQuick(key: string) {
+  const next = new Set(focused.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  persist([...next])
+}
+
+function openSettings() {
+  draft.value = [...focused.value]
+  popoverVisible.value = false
   drawerVisible.value = true
 }
 
-function saveFocus() {
-  setFocusedCategories(focused.value)
+function toggleDraft(key: string) {
+  const next = new Set(draft.value)
+  if (next.has(key)) next.delete(key)
+  else next.add(key)
+  draft.value = [...next]
+}
+
+function subscribeAllDraft() {
+  draft.value = [...availableKeys.value]
+}
+
+function clearDraft() {
+  draft.value = []
+}
+
+function saveSettings() {
+  persist(draft.value)
   drawerVisible.value = false
-  recompute()
 }
 
-function focusAll() {
-  focused.value = [...CATEGORY_KEYS]
-}
-
-function openCategory(key: CategoryKey) {
+function openCategory(key: string) {
   router.push(`/category/${encodeURIComponent(key)}`)
 }
 
 function goSearch() {
   router.push({ path: '/notices', query: keyword.value.trim() ? { q: keyword.value.trim() } : {} })
+}
+
+/** 示例数据的前缀没有信息量，不占卡片空间 */
+function cleanTitle(title: string): string {
+  return title.replace(/^【示例】/, '')
 }
 
 onMounted(load)
@@ -127,21 +152,18 @@ onMounted(load)
   <div class="category-home">
     <section class="cat-hero">
       <div class="zg-container cat-hero-inner">
-        <div class="brief-eyebrow">知更 AI · 校园信息分组</div>
-        <h1>先分三件事，再看具体通知</h1>
-        <p>
-          从 {{ sourceCount }} 个校园网站的 {{ total }} 条通知里，按「要不要参加 / 要不要办 / 只需知晓」分成三组
-        </p>
+        <h1>首页只放你关心的事</h1>
+        <p>{{ sourceCount }} 个网站 · {{ total }} 条通知 · {{ catalog.categories.length }} 类</p>
         <div class="cat-search">
           <el-input
             v-model="keyword"
             size="large"
             clearable
-            placeholder="不确定属于哪一组？直接搜关键词，例如「四六级」"
+            placeholder="搜索全部通知"
             @keyup.enter="goSearch"
           >
             <template #append>
-              <el-button type="primary" @click="goSearch">搜索全部</el-button>
+              <el-button type="primary" @click="goSearch">搜索</el-button>
             </template>
           </el-input>
         </div>
@@ -150,17 +172,33 @@ onMounted(load)
 
     <div class="zg-container cat-content">
       <div class="cat-summary zg-card">
-        <div>
-          <strong>{{ urgentTotal }}</strong>
-          <span>件事即将截止</span>
+        <div class="summary-main">
+          <strong>{{ urgentTotal }}</strong><span>件临期</span>
+          <i></i>
+          <strong>{{ subscribedCategories.length }}</strong><span>类在首页</span>
         </div>
-        <div>
-          <strong>{{ total }}</strong>
-          <span>条通知已整理</span>
+        <div class="summary-actions">
+          <el-popover v-model:visible="popoverVisible" placement="bottom-end" :width="280" trigger="click">
+            <template #reference>
+              <el-button type="primary" plain>类别 {{ focused.length }}/{{ catalog.categories.length }} ▾</el-button>
+            </template>
+            <div class="popover-head">
+              <strong>选择要放大显示的类别</strong>
+              <el-button link type="primary" @click="openSettings">管理</el-button>
+            </div>
+            <div class="popover-list">
+              <el-checkbox
+                v-for="cat in catalog.categories"
+                :key="cat.key"
+                :model-value="focused.includes(cat.key)"
+                @change="toggleQuick(cat.key)"
+              >
+                {{ cat.key }}
+              </el-checkbox>
+            </div>
+          </el-popover>
+          <router-link to="/notices" class="cat-all-link">全部通知 →</router-link>
         </div>
-        <span class="focus-count">已关注 {{ focused.length }} / {{ CATEGORY_KEYS.length }} 类</span>
-        <el-button type="primary" plain size="small" @click="openFocusSettings">选择重点关注类别</el-button>
-        <router-link to="/notices" class="cat-all-link">进入完整清单 →</router-link>
       </div>
 
       <div v-if="loading" class="group-grid">
@@ -172,61 +210,68 @@ onMounted(load)
         <el-button type="primary" @click="load">重新加载</el-button>
       </div>
 
-      <div v-else-if="groups.length === 0" class="cat-empty zg-card">
-        <h2>还没有关注任何类别</h2>
-        <p>到设置里勾选你关心的类别，首页就会只展示这些通知。</p>
-        <el-button type="primary" @click="openFocusSettings">选择重点关注类别</el-button>
+      <div v-else-if="catalog.categories.length === 0" class="cat-empty zg-card">
+        <h2>还没有采集到通知</h2>
+        <router-link to="/sources"><el-button type="primary">去添加网站</el-button></router-link>
+      </div>
+
+      <div v-else-if="visibleGroups.length === 0" class="cat-empty zg-card">
+        <h2>还没有订阅任何类别</h2>
+        <el-button type="primary" @click="openSettings">选择关注类别</el-button>
       </div>
 
       <template v-else>
-        <div class="group-grid">
-          <section v-for="group in groups" :key="group.key" class="group-card zg-card">
-            <header class="group-head">
-              <h2>{{ group.key }}</h2>
-              <span v-if="group.urgent" class="cat-urgent">{{ group.urgent }} 件临期</span>
-            </header>
-            <p class="group-desc">{{ group.description }}</p>
-            <div class="group-numbers">
-              <strong>{{ group.total }}</strong><span>条</span>
+        <section v-for="group in visibleGroups" :key="group.key" class="focus-group">
+          <h2 class="focus-group-head">{{ group.key }}</h2>
+          <div class="focus-grid">
+            <article v-for="cat in group.categories" :key="cat.key" class="focus-card zg-card">
+              <div class="focus-card-head">
+                <h3>{{ cat.key }}</h3>
+                <em v-if="cat.urgent">{{ cat.urgent }} 件临期</em>
+              </div>
+              <div class="focus-metrics"><strong>{{ cat.total }}</strong><span>条</span></div>
+              <ul class="focus-items">
+                <li v-for="notice in (noticesByCategory.get(cat.key) ?? []).slice(0, 2)" :key="notice.id">
+                  <router-link :to="`/notice/${notice.id}`" class="focus-item-link">{{ cleanTitle(notice.title) }}</router-link>
+                </li>
+              </ul>
+              <button type="button" class="view-all" @click="openCategory(cat.key)">查看全部 →</button>
+            </article>
+          </div>
+        </section>
+
+        <section v-if="otherCategories.length" class="other-cats zg-card">
+          <h2>其他类别</h2>
+          <div class="other-chips">
+            <div v-for="cat in otherCategories" :key="cat.key" class="other-chip">
+              <button type="button" class="other-chip-main" @click="openCategory(cat.key)">
+                {{ cat.key }} <em>{{ cat.total }}</em>
+              </button>
+              <button type="button" class="other-chip-add" title="订阅到首页" @click="toggleQuick(cat.key)">+</button>
             </div>
-            <ul class="group-categories">
-              <li v-for="cat in group.categories" :key="cat.key">
-                <button type="button" class="cat-chip" @click="openCategory(cat.key)">
-                  <span>{{ cat.key }}</span>
-                  <em>{{ cat.total }}</em>
-                  <i v-if="cat.urgent">{{ cat.urgent }} 临期</i>
-                </button>
-              </li>
-            </ul>
-          </section>
-        </div>
-        <p class="cat-note">
-          分类依据来自教务处官网真实发布内容：选修课督促、四六级考试、毕业设计属于「学业事务」；
-          比选公告与结果公示属于「公告信息」。每组提取的关键词不同，字段无原文依据时标「待核实」。
-        </p>
+          </div>
+        </section>
       </template>
     </div>
 
-    <el-drawer v-model="drawerVisible" title="选择重点关注的类别" size="460px">
-      <p class="drawer-tip">
-        信息源会持续增加，类别也会变多。勾选你关心的类别，首页只展示这些部分；完整检索始终可以搜到全部通知。
-      </p>
-      <div v-for="group in GROUPS" :key="group.key" class="pref-group">
-        <h3>{{ group.key }} <span>{{ group.description }}</span></h3>
-        <el-checkbox-group v-model="focused">
-          <el-checkbox
-            v-for="spec in getGroupCategories(group.key)"
-            :key="spec.key"
-            :value="spec.key"
-          >
-            {{ spec.key }}
+    <el-drawer v-model="drawerVisible" title="管理类别订阅" size="520px">
+      <div class="drawer-actions">
+        <el-button @click="subscribeAllDraft">全部订阅</el-button>
+        <el-button @click="clearDraft">清空选择</el-button>
+      </div>
+      <div v-for="group in catalog.groups" :key="group.key" class="pref-group">
+        <h3>{{ group.key }}</h3>
+        <div v-for="cat in group.categories" :key="cat.key" class="pref-row">
+          <el-checkbox :model-value="draft.includes(cat.key)" @change="toggleDraft(cat.key)">
+            {{ cat.key }} · {{ cat.total }} 条
           </el-checkbox>
-        </el-checkbox-group>
+          <el-button link type="primary" @click="openCategory(cat.key)">查看</el-button>
+        </div>
       </div>
       <template #footer>
         <div class="drawer-footer">
-          <el-button @click="focusAll">全部关注</el-button>
-          <el-button type="primary" @click="saveFocus">保存设置</el-button>
+          <el-button @click="drawerVisible = false">取消</el-button>
+          <el-button type="primary" @click="saveSettings">保存设置</el-button>
         </div>
       </template>
     </el-drawer>
@@ -244,26 +289,15 @@ onMounted(load)
   flex-direction: column;
   align-items: flex-start;
 }
-.brief-eyebrow {
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 1px;
-  color: var(--zg-primary);
-  background: #fff;
-  border: 1px solid var(--zg-primary-light);
-  border-radius: 999px;
-  padding: 3px 12px;
-  margin-bottom: 14px;
-}
 .cat-hero h1 {
   margin: 0;
   font-size: 32px;
   font-weight: 800;
 }
 .cat-hero p {
-  margin: 8px 0 20px;
+  margin: 10px 0 22px;
   color: var(--zg-text-secondary);
-  font-size: 15px;
+  font-size: 16px;
 }
 .cat-search {
   width: 100%;
@@ -276,30 +310,57 @@ onMounted(load)
 .cat-summary {
   display: flex;
   align-items: center;
-  gap: 32px;
-  padding: 16px 24px;
-  margin-bottom: 20px;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 18px 26px;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
 }
-.cat-summary > div {
+.summary-main,
+.summary-actions {
   display: flex;
   align-items: baseline;
-  gap: 6px;
+  gap: 10px;
+}
+.summary-main i {
+  width: 1px;
+  height: 22px;
+  margin: 0 8px;
+  background: var(--zg-border);
 }
 .cat-summary strong {
-  font-size: 24px;
+  font-size: 30px;
   color: var(--zg-primary);
 }
 .cat-summary span {
-  font-size: 13px;
+  font-size: 16px;
   color: var(--zg-text-secondary);
 }
-.focus-count {
-  font-size: 12px;
-  color: var(--zg-text-secondary);
+.summary-actions {
+  align-items: center;
 }
 .cat-all-link {
-  margin-left: auto;
+  font-size: 16px;
+}
+.popover-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--zg-border);
   font-size: 13px;
+}
+.popover-list {
+  max-height: 280px;
+  overflow-y: auto;
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.popover-list :deep(.el-checkbox) {
+  height: 28px;
+  margin: 0;
 }
 .cat-empty {
   padding: 40px 20px;
@@ -314,29 +375,25 @@ onMounted(load)
   color: var(--zg-text-secondary);
   font-size: 13px;
 }
-.drawer-tip {
-  margin: 0 0 18px;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--zg-text-secondary);
+.drawer-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 18px;
 }
 .pref-group {
   margin-bottom: 20px;
 }
 .pref-group h3 {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 15px;
   border-bottom: 1px solid var(--zg-border);
   padding-bottom: 8px;
 }
-.pref-group h3 span {
-  margin-left: 8px;
-  font-size: 12px;
-  font-weight: 400;
-  color: var(--zg-text-secondary);
-}
-.pref-group :deep(.el-checkbox) {
-  margin: 0 16px 8px 0;
+.pref-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
 }
 .drawer-footer {
   display: flex;
@@ -345,96 +402,150 @@ onMounted(load)
 }
 .group-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 16px;
-  align-items: start;
 }
-.group-card {
-  padding: 20px;
+.focus-group {
+  margin-bottom: 34px;
 }
-.group-head {
+.focus-group-head {
+  margin: 0 0 14px;
+  font-size: 22px;
+  font-weight: 700;
+}
+.focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 18px;
+  align-items: stretch;
+}
+.focus-card {
+  padding: 24px 26px;
+  display: flex;
+  flex-direction: column;
+}
+.focus-card-head {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
 }
-.group-head h2 {
+.focus-card-head h3 {
   margin: 0;
   font-size: 21px;
   font-weight: 700;
 }
-.cat-urgent {
-  font-size: 12px;
+.focus-card-head em {
+  flex: 0 0 auto;
+  font-style: normal;
+  font-size: 13px;
   color: var(--zg-danger);
   background: #fdecec;
   border-radius: 999px;
-  padding: 2px 9px;
+  padding: 3px 10px;
 }
-.group-desc {
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--zg-text-secondary);
-}
-.group-numbers {
+.focus-metrics {
   display: flex;
   align-items: baseline;
-  gap: 5px;
-  margin: 14px 0 10px;
+  gap: 6px;
+  margin: 16px 0 14px;
 }
-.group-numbers strong {
-  font-size: 30px;
+.focus-metrics strong {
+  font-size: 38px;
   color: var(--zg-primary);
+  line-height: 1;
 }
-.group-numbers span {
-  font-size: 13px;
+.focus-metrics span {
+  font-size: 15px;
   color: var(--zg-text-secondary);
 }
-.group-categories {
+.focus-items {
   list-style: none;
   margin: 0;
   padding: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 7px;
-}
-.cat-chip {
-  display: flex;
-  align-items: center;
   gap: 8px;
-  width: 100%;
-  padding: 8px 12px;
+}
+.focus-items li {
+  font-size: 15px;
+  line-height: 1.5;
+}
+.focus-item-link {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  color: var(--zg-text);
+  text-decoration: none;
+}
+.focus-item-link:hover {
+  color: var(--zg-primary);
+}
+.view-all {
+  align-self: flex-start;
+  margin-top: 18px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--zg-primary);
+  cursor: pointer;
+}
+.other-cats {
+  padding: 22px 26px;
+}
+.other-cats h2 {
+  margin: 0 0 14px;
+  font-size: 20px;
+}
+.other-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.other-chip {
+  display: flex;
+  align-items: stretch;
   border: 1px solid var(--zg-border);
   border-radius: 8px;
+  overflow: hidden;
   background: #fff;
-  color: var(--zg-text);
-  font: inherit;
-  font-size: 13px;
-  text-align: left;
-  cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
 }
-.cat-chip:hover {
-  border-color: var(--zg-primary);
+.other-chip-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: none;
+  background: transparent;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  color: var(--zg-text);
+  cursor: pointer;
+}
+.other-chip-main:hover {
   background: var(--zg-primary-light);
 }
-.cat-chip span {
-  font-weight: 600;
-}
-.cat-chip em {
-  margin-left: auto;
+.other-chip-main em {
   font-style: normal;
+  font-size: 14px;
   color: var(--zg-text-secondary);
-  font-size: 12px;
 }
-.cat-chip i {
-  font-style: normal;
-  font-size: 11px;
-  color: var(--zg-danger);
+.other-chip-add {
+  border: none;
+  border-left: 1px solid var(--zg-border);
+  background: var(--zg-bg);
+  color: var(--zg-primary);
+  font-size: 20px;
+  width: 38px;
+  cursor: pointer;
 }
-.cat-note {
-  margin: 18px 0 0;
-  font-size: 12.5px;
-  color: var(--zg-text-secondary);
-  text-align: center;
+.other-chip-add:hover {
+  background: var(--zg-primary-light);
 }
 .cat-error {
   display: flex;
@@ -452,12 +563,11 @@ onMounted(load)
     font-size: 23px;
   }
   .cat-hero p {
-    font-size: 13px;
+    font-size: 14px;
   }
   .cat-summary {
-    gap: 16px;
-    padding: 12px;
-    flex-wrap: wrap;
+    gap: 14px;
+    padding: 14px 16px;
   }
   .cat-summary strong {
     font-size: 20px;
@@ -465,7 +575,7 @@ onMounted(load)
   .cat-all-link {
     margin-left: 0;
   }
-  .group-grid {
+  .focus-grid {
     grid-template-columns: 1fr;
   }
 }

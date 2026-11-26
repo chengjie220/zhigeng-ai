@@ -43,6 +43,15 @@ export const mockSources: SourceItem[] = [
     last_synced_at: '2026-11-26 18:40',
     enabled: true,
   },
+  {
+    id: 5,
+    name: '成都大学图书馆 · 读者通知',
+    url: 'https://lib.cdu.edu.cn/xxfw/tzgg.htm',
+    content_types: '读者服务、馆务公告、培训讲座',
+    last_synced_at: '2026-11-25 15:20',
+    enabled: true,
+    is_custom: true,
+  },
 ]
 
 /** Mock 搜索结果：模拟搜索引擎返回的校园网站候选 */
@@ -123,7 +132,16 @@ export const mockNotices: NoticeDetail[] = [
       '级别': '校级选拔，优胜项目推荐参加省级竞赛',
       '团队规模': '每队人数不超过 5 人',
     },
-    attachments: [{ name: '报名表模板.docx', url: 'https://example.com/attachment/1' }],
+    attachments: [{
+      name: '报名表模板.docx',
+      url: 'https://example.com/attachment/1',
+      content:
+        '第八届大学生创新创业大赛校内选拔赛报名表\n' +
+        '团队名称：________  项目负责人：________  联系电话：________\n' +
+        '团队成员（不超过5人）：________\n' +
+        '项目简介（300字以内）：________\n' +
+        '提交方式：填写完成后发送至 cxcy@example.edu.cn，截止 2026 年 12 月 10 日。',
+    }],
     body_text:
       '为培养大学生创新创业能力，激发学生的创新思维与创业热情，学校决定举办第八届大学生创新创业大赛校内选拔赛。现将有关事项通知如下。\n' +
       '一、参赛对象：全日制在校本科生、研究生均可报名，以团队形式参赛，每队人数不超过 5 人，鼓励跨学院、跨专业组队。\n' +
@@ -213,7 +231,15 @@ export const mockNotices: NoticeDetail[] = [
     evidence: {
       deadline_date: '各学院于 12 月 20 日前完成推荐报送。',
     },
-    attachments: [{ name: '项目申报书.docx', url: 'https://example.com/attachment/4' }],
+    attachments: [{
+      name: '项目申报书.docx',
+      url: 'https://example.com/attachment/4',
+      content:
+        '大学生创新创业训练项目申报书\n' +
+        '项目名称：________  项目级别：校级 / 省级\n' +
+        '一、立项依据：________\n二、研究内容：________\n三、进度安排：________\n' +
+        '四、经费预算：________\n申报截止时间：2026 年 12 月 5 日。',
+    }],
     body_text:
       '为进一步强化大学生创新实践能力培养，根据上级文件要求，现组织申报本年度大学生创新创业训练计划项目。\n' +
       '一、项目类别：分为创新训练项目、创业训练项目和创业实践项目三类，其中国家级、省级项目由学校择优推荐。\n' +
@@ -418,7 +444,15 @@ export const mockNotices: NoticeDetail[] = [
     evidence: {
       deadline_date: '所有课程的学习任务务必于2026年12月20日前完成。',
     },
-    attachments: [{ name: '本学期学习进度统计表.xlsx', url: 'https://example.com/attachment/11' }],
+    attachments: [{
+      name: '本学期学习进度统计表.xlsx',
+      url: 'https://example.com/attachment/11',
+      content:
+        '学号\t姓名\t课程\t学习进度\t考核状态\n' +
+        '2024xxxx01\t张三\t智慧树·中国哲学史\t100%\t待考核\n' +
+        '2024xxxx02\t李四\t尔雅·大学生心理健康\t80%\t未完成\n' +
+        '请于 2026 年 12 月 20 日前完成全部学习任务。',
+    }],
     extra: {
       '办理事项': '请各学院及时督促相关学生完成课程学习，各位同学务必按照课程进度参加学习和考核。',
       '平台入口': '智慧树、尔雅平台',
@@ -619,5 +653,67 @@ export const mockNotices: NoticeDetail[] = [
       '经研究决定给予上述学生严重警告处分。\n' +
       '计算机学院\n' +
       '2026年11月17日',
+  },
+  {
+    id: 18,
+    title: '【示例】图书馆数据库检索培训讲座开讲通知',
+    source_id: 5,
+    source_name: '成都大学图书馆 · 读者通知',
+    category: '读者服务',
+    published_at: '2026-11-25',
+    deadline_date: '2026-12-18',
+    deadline_time: null,
+    summary: '图书馆面向全校师生开展数据库检索培训讲座，讲解文献检索与论文写作工具。',
+    ai_status: 'done',
+    original_url: 'https://example.com/notice/18',
+    audience: ['全校师生'],
+    requirements: [],
+    application_method: '线上预约参加',
+    evidence: {
+      deadline_date: '报名截止时间为2026年12月18日。',
+      'extra.时间地点': '讲座时间为12月26日下午，地点为图书馆报告厅。',
+    },
+    attachments: [],
+    extra: {
+      '时间地点': '讲座时间为12月26日下午，地点为图书馆报告厅。',
+      '主办单位': '成都大学图书馆',
+    },
+    body_text:
+      '图书馆数据库检索培训讲座开讲通知\n' +
+      '为帮助师生用好馆藏数字资源，图书馆举办数据库检索培训讲座，讲解文献检索与论文写作工具。\n' +
+      '一、参与对象：全校师生均可参加。\n' +
+      '二、讲座时间为12月26日下午，地点为图书馆报告厅。\n' +
+      '三、参与方式：线上预约参加。\n' +
+      '四、报名截止时间为2026年12月18日。',
+  },
+  {
+    id: 19,
+    title: '【示例】图书馆关于调整阅览室开放时间的公告',
+    source_id: 5,
+    source_name: '成都大学图书馆 · 读者通知',
+    category: '馆务公告',
+    published_at: '2026-11-24',
+    deadline_date: null,
+    deadline_time: null,
+    summary: '因设备维护，图书馆部分阅览室开放时间临时调整，请读者关注现场通知。',
+    ai_status: 'done',
+    original_url: 'https://example.com/notice/19',
+    audience: [],
+    requirements: [],
+    application_method: null,
+    evidence: {
+      'extra.时间地点': '调整范围为三楼期刊阅览室，开放时间改为9:00至17:00。',
+    },
+    attachments: [],
+    extra: {
+      '时间地点': '调整范围为三楼期刊阅览室，开放时间改为9:00至17:00。',
+      '主办单位': '成都大学图书馆',
+    },
+    body_text:
+      '图书馆关于调整阅览室开放时间的公告\n' +
+      '因设备维护，图书馆部分阅览室开放时间临时调整，请读者关注现场通知。\n' +
+      '调整范围为三楼期刊阅览室，开放时间改为9:00至17:00。\n' +
+      '成都大学图书馆\n' +
+      '2026年11月24日',
   },
 ]

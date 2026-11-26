@@ -1,12 +1,15 @@
 <script setup lang="ts">
+import { computed } from 'vue'
 import type { DeadlineFilter, SourceItem } from '@/types/notice'
 import { CATEGORIES } from '@/config/categories'
 
-defineProps<{
+const props = defineProps<{
   category: string
   sourceId: number | ''
   deadlineStatus: DeadlineFilter
   sources: SourceItem[]
+  /** 当前数据里实际存在的类别，包含新网站带来的动态类别 */
+  categories?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -16,7 +19,12 @@ const emit = defineEmits<{
   reset: []
 }>()
 
-const categoryOptions = CATEGORIES.map((c) => c.key)
+/** 预置类别 + 数据里实际出现的类别，新网站的类别也能被筛选 */
+const categoryOptions = computed(() => {
+  const options = [...CATEGORIES.map((c) => c.key), ...(props.categories ?? [])]
+  if (props.category && !options.includes(props.category)) options.unshift(props.category)
+  return [...new Set(options)]
+})
 const deadlineOptions: { label: string; value: DeadlineFilter }[] = [
   { label: '全部截止状态', value: 'all' },
   { label: '7天内截止', value: 'urgent' },

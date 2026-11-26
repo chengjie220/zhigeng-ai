@@ -48,6 +48,11 @@ const hasActiveFilter = computed(
     deadlineStatus.value !== 'all',
 )
 
+/** 当前页出现的类别 + URL 里的类别，避免新网站的动态类别在筛选下拉里消失 */
+const categoryOptions = computed(() =>
+  [...new Set([...items.value.map((n) => n.category), category.value])].filter(Boolean),
+)
+
 /** 当前生效的筛选条件摘要，让用户清楚「为什么只看到这几条」 */
 const filterSummary = computed(() => {
   const parts: string[] = []
@@ -228,6 +233,7 @@ onMounted(async () => {
           v-model:source-id="sourceId"
           v-model:deadline-status="deadlineStatus"
           :sources="sources"
+          :categories="categoryOptions"
           @update:category="onFilterChange"
           @update:source-id="onFilterChange"
           @update:deadline-status="onFilterChange"

@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import DeadlineBadge from '@/components/DeadlineBadge.vue'
 import EmptyState from '@/components/EmptyState.vue'
-import { getNoticeDetail } from '@/api/notices'
+import { getAttachmentText, getNoticeDetail, USE_MOCK } from '@/api/notices'
 import type { NoticeDetail } from '@/types/notice'
 import { formatDateFull } from '@/utils/date'
 import { getFavoriteIds, toggleFavorite as toggleFavStore } from '@/utils/favorites'
@@ -25,6 +25,12 @@ const activeEvidence = ref('')
 
 /** 与 .body-text.collapsed 的 max-height 保持一致 */
 const BODY_CLAMP_PX = 240
+
+/** 附件就地读取状态 */
+const openAttachmentIndex = ref<number | null>(null)
+const attachmentText = ref('')
+const attachmentUnsupported = ref('')
+const attachmentLoading = ref(false)
 
 /** 正文按空行切成段落，再把当前高亮词切出来 */
 const bodyParagraphs = computed(() => {
@@ -53,12 +59,50 @@ async function measureBodyOverflow() {
   bodyOverflow.value = el.scrollHeight > BODY_CLAMP_PX + 4
 }
 
+/** 展开/收起附件内容：能解析的直接读出来，不能解析的说明原因并保留原文件入口 */
+async function toggleAttachment(index: number) {
+  if (openAttachmentIndex.value === index) {
+    openAttachmentIndex.value = null
+    return
+  }
+  const attachment = detail.value?.attachments?.[index]
+  if (!attachment) return
+  openAttachmentIndex.value = index
+  attachmentText.value = ''
+  attachmentUnsupported.value = ''
+  if (attachment.content) {
+    attachmentText.value = attachment.content
+    return
+  }
+  if (attachment.unsupported) {
+    attachmentUnsupported.value = attachment.unsupported
+    return
+  }
+  if (USE_MOCK) {
+    attachmentUnsupported.value = '示例数据未附带该文件内容，请打开原文件查看'
+    return
+  }
+  attachmentLoading.value = true
+  try {
+    const result = await getAttachmentText(detail.value!.id, index)
+    attachmentText.value = result.content ?? ''
+    attachmentUnsupported.value = result.unsupported ?? ''
+  } catch {
+    attachmentUnsupported.value = '暂时无法读取该文件内容，请打开原文件查看'
+  } finally {
+    attachmentLoading.value = false
+  }
+}
+
 /** 切换到另一条通知时重置展开状态并按新正文重新测量 */
 watch(
   () => detail.value?.id,
   () => {
     bodyExpanded.value = false
     bodyOverflow.value = false
+    openAttachmentIndex.value = null
+    attachmentText.value = ''
+    attachmentUnsupported.value = ''
     measureBodyOverflow()
   },
 )
@@ -132,6 +176,9 @@ async function load() {
     // 切换通知时重置正文展开与高亮状态
     bodyExpanded.value = false
     activeEvidence.value = ''
+    openAttachmentIndex.value = null
+    attachmentText.value = ''
+    attachmentUnsupported.value = ''
     // 从简报「看依据」跳转过来时，详情是异步渲染的，需在数据到位后再定位一次
     if (route.hash === '#evidence') {
       await nextTick()
@@ -313,6 +360,23 @@ watch(
           正文由系统自动抓取，可能存在排版丢失或内容截断；如与来源页面不一致，以
           <a :href="detail.original_url" target="_blank" rel="noopener">原文</a> 为准。
         </p>
+
+        <div v-if="detail.attachments?.length" class="attachments">
+          <h3 class="attachment-title">附件 <span>{{ detail.attachments.length }}</span></h3>
+          <div v-for="(att, i) in detail.attachments" :key="att.url" class="attachment">
+            <div class="attachment-row">
+              <button type="button" class="attachment-name" @click="toggleAttachment(i)">
+                📎 {{ att.name }} <em>{{ openAttachmentIndex === i ? '收起' : '读取内容' }}</em>
+              </button>
+              <a :href="att.url" target="_blank" rel="noopener" class="attachment-open">打开原文件 ↗</a>
+            </div>
+            <div v-if="openAttachmentIndex === i" class="attachment-panel">
+              <p v-if="attachmentLoading" class="muted-text">正在读取…</p>
+              <pre v-else-if="attachmentText">{{ attachmentText }}</pre>
+              <p v-else class="muted-text">{{ attachmentUnsupported || '这个文件暂时无法直接读取' }}</p>
+            </div>
+          </div>
+        </div>
       </section>
 
       <!-- 第五部分：操作 -->
@@ -325,17 +389,6 @@ watch(
           <el-button :type="favorited ? 'warning' : 'default'" @click="onToggleFavorite">
             {{ favorited ? '★ 已收藏' : '☆ 收藏通知' }}
           </el-button>
-          <template v-if="detail.attachments && detail.attachments.length">
-            <a
-              v-for="att in detail.attachments"
-              :key="att.url"
-              :href="att.url"
-              target="_blank"
-              rel="noopener"
-            >
-              <el-button plain>📎 {{ att.name }}</el-button>
-            </a>
-          </template>
         </div>
       </section>
     </template>
@@ -389,6 +442,72 @@ watch(
   margin: 12px 0 0;
   font-size: 12.5px;
   color: var(--zg-text-secondary);
+}
+.attachments {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--zg-border);
+}
+.attachment-title {
+  margin: 0 0 10px;
+  font-size: 17px;
+  font-weight: 700;
+}
+.attachment-title span {
+  margin-left: 6px;
+  font-size: 14px;
+  color: var(--zg-text-secondary);
+}
+.attachment {
+  border: 1px solid var(--zg-border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 8px;
+}
+.attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.attachment-name {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  padding: 0;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: left;
+  color: var(--zg-text);
+  cursor: pointer;
+}
+.attachment-name em {
+  margin-left: 8px;
+  font-style: normal;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--zg-primary);
+}
+.attachment-open {
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+.attachment-panel {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--zg-border);
+}
+.attachment-panel pre {
+  margin: 0;
+  max-height: 280px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
 }
 .evidence-item {
   padding: 10px 0;

@@ -114,8 +114,11 @@ describe('分类专属字段', () => {
     expect(buildCategoryFields(detail({}), '公示', 3)).toEqual([])
   })
 
-  it('未知分类安全降级到活动类', () => {
-    expect(getCategorySpec('未知').key).toBe('活动')
+  it('未知分类保留原名并进入新发现组，不再误降级到活动类', () => {
+    const spec = getCategorySpec('未知')
+    expect(spec.key).toBe('未知')
+    expect(spec.group).toBe('新发现')
+    expect(spec.fields.map((f) => f.key)).toContain('application_method')
   })
 
   it('数组字段用顿号连接', () => {
