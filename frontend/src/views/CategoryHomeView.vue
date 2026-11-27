@@ -3,6 +3,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { getNotices, getStats } from '@/api/notices'
 import { getSources } from '@/api/sources'
+import TimeBucketBoard from '@/components/TimeBucketBoard.vue'
+import DeadlineBadge from '@/components/DeadlineBadge.vue'
 import {
   buildDynamicCatalog,
   defaultFocusKeys,
@@ -66,6 +68,11 @@ const noticesByCategory = computed(() => {
   }
   return map
 })
+
+/** 首页时间板：已订阅类别的全部通知，按截止时间分桶 */
+const timeBoardNotices = computed(() =>
+  subscribedCategories.value.flatMap((c) => noticesByCategory.value.get(c.key) ?? []),
+)
 
 async function load() {
   loading.value = true
@@ -221,6 +228,8 @@ onMounted(load)
       </div>
 
       <template v-else>
+        <TimeBucketBoard :notices="timeBoardNotices" />
+
         <section v-for="group in visibleGroups" :key="group.key" class="focus-group">
           <h2 class="focus-group-head">{{ group.key }}</h2>
           <div class="focus-grid">
@@ -233,6 +242,7 @@ onMounted(load)
               <ul class="focus-items">
                 <li v-for="notice in (noticesByCategory.get(cat.key) ?? []).slice(0, 2)" :key="notice.id">
                   <router-link :to="`/notice/${notice.id}`" class="focus-item-link">{{ cleanTitle(notice.title) }}</router-link>
+                  <DeadlineBadge :deadline-date="notice.deadline_date" compact />
                 </li>
               </ul>
               <button type="button" class="view-all" @click="openCategory(cat.key)">查看全部 →</button>
@@ -471,6 +481,10 @@ onMounted(load)
 .focus-items li {
   font-size: 15px;
   line-height: 1.5;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  justify-content: space-between;
 }
 .focus-item-link {
   display: -webkit-box;
@@ -479,6 +493,8 @@ onMounted(load)
   overflow: hidden;
   color: var(--zg-text);
   text-decoration: none;
+  flex: 1;
+  min-width: 0;
 }
 .focus-item-link:hover {
   color: var(--zg-primary);
