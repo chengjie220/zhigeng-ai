@@ -12,7 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
-from app.api import notices_router, sources_router, system_router
+from app.api import notices_router, qa_router, sources_router, system_router
 from app.config import get_settings
 from app.database import init_db
 
@@ -59,6 +59,7 @@ app.add_middleware(
 app.include_router(notices_router, prefix="/api/v1", tags=["notices"])
 app.include_router(sources_router, prefix="/api/v1", tags=["sources"])
 app.include_router(system_router, prefix="/api/v1", tags=["system"])
+app.include_router(qa_router, prefix="/api/v1", tags=["qa"])
 
 
 @app.get("/{full_path:path}")

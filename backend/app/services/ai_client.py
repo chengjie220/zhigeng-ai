@@ -409,6 +409,30 @@ def _llm_messages(title: str, body: str, published_at: str | None, source_name: 
     ]
 
 
+def llm_chat(messages: list[dict[str, str]], system: str | None = None) -> str:
+    """通用 OpenAI 兼容对话调用，返回文本回答。配置缺失/调用失败抛异常，由调用方降级。"""
+    settings = get_settings()
+    if not settings.ai_api_key:
+        raise RuntimeError("AI_API_KEY 未配置")
+    msgs = list(messages)
+    if system:
+        msgs = [{"role": "system", "content": system}] + msgs
+    url = settings.ai_base_url.rstrip("/") + "/chat/completions"
+    payload: dict[str, Any] = {
+        "model": settings.ai_model,
+        "messages": msgs,
+        "temperature": 0.2,
+    }
+    with httpx.Client(timeout=60) as client:
+        resp = client.post(
+            url,
+            headers={"Authorization": f"Bearer {settings.ai_api_key}"},
+            json=payload,
+        )
+        resp.raise_for_status()
+        return resp.json()["choices"][0]["message"]["content"]
+
+
 def llm_extract(title: str, body: str, published_at: str | None, source_name: str) -> ParsedNotice:
     settings = get_settings()
     url = settings.ai_base_url.rstrip("/") + "/chat/completions"

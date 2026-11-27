@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import SearchBar from '@/components/SearchBar.vue'
+import AiAssistantDrawer from '@/components/AiAssistantDrawer.vue'
 import FilterPanel from '@/components/FilterPanel.vue'
 import NoticeCard from '@/components/NoticeCard.vue'
 import EmptyState from '@/components/EmptyState.vue'
@@ -24,6 +25,7 @@ const pageSize = 10
 /** keyword：输入框实时值；appliedKeyword：已生效的查询值（与 URL 的 q 同步） */
 const keyword = ref('')
 const appliedKeyword = ref('')
+const askVisible = ref(false)
 const category = ref('')
 const sourceId = ref<number | ''>('')
 const deadlineStatus = ref<DeadlineFilter>('all')
@@ -222,6 +224,7 @@ onMounted(async () => {
           placeholder="搜索竞赛、实践、讲座…"
           @search="onSearch"
         />
+        <el-button class="hero-ask" @click="askVisible = true">✦ 问知更 · 直接提问</el-button>
       </div>
     </section>
 
@@ -319,6 +322,8 @@ onMounted(async () => {
         </div>
       </template>
     </div>
+
+    <AiAssistantDrawer v-model="askVisible" />
   </div>
 </template>
 
@@ -349,6 +354,17 @@ onMounted(async () => {
 }
 .hero-search {
   max-width: 620px;
+}
+.hero-ask {
+  margin-top: 14px;
+  border-color: rgba(255, 255, 255, 0.5);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+}
+.hero-ask:hover {
+  color: #fff;
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.2);
 }
 .content-area {
   padding-bottom: 40px;

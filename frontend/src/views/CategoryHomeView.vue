@@ -5,6 +5,7 @@ import { getNotices, getStats } from '@/api/notices'
 import { getSources } from '@/api/sources'
 import TimeBucketBoard from '@/components/TimeBucketBoard.vue'
 import DeadlineBadge from '@/components/DeadlineBadge.vue'
+import AiAssistantDrawer from '@/components/AiAssistantDrawer.vue'
 import {
   buildDynamicCatalog,
   defaultFocusKeys,
@@ -35,6 +36,11 @@ const focused = ref<string[]>([])
 const draft = ref<string[]>([])
 const drawerVisible = ref(false)
 const popoverVisible = ref(false)
+const askVisible = ref(false)
+
+function openAsk() {
+  askVisible.value = true
+}
 
 /** 类别完全由当前已采集的通知推导：新增网站同步后首页自动重新分配 */
 const catalog = computed<DynamicCatalog>(() =>
@@ -161,18 +167,23 @@ onMounted(load)
       <div class="zg-container cat-hero-inner">
         <h1>首页只放你关心的事</h1>
         <p>{{ sourceCount }} 个网站 · {{ total }} 条通知 · {{ catalog.categories.length }} 类</p>
-        <div class="cat-search">
-          <el-input
-            v-model="keyword"
-            size="large"
-            clearable
-            placeholder="搜索全部通知"
-            @keyup.enter="goSearch"
-          >
-            <template #append>
-              <el-button type="primary" @click="goSearch">搜索</el-button>
-            </template>
-          </el-input>
+        <div class="cat-search-row">
+          <div class="cat-search">
+            <el-input
+              v-model="keyword"
+              size="large"
+              clearable
+              placeholder="搜索全部通知"
+              @keyup.enter="goSearch"
+            >
+              <template #append>
+                <el-button type="primary" @click="goSearch">搜索</el-button>
+              </template>
+            </el-input>
+          </div>
+          <el-button size="large" class="cat-ask-btn" @click="openAsk">
+            <span class="cat-ask-spark">✦</span> 问知更
+          </el-button>
         </div>
       </div>
     </section>
@@ -285,6 +296,8 @@ onMounted(load)
         </div>
       </template>
     </el-drawer>
+
+    <AiAssistantDrawer v-model="askVisible" />
   </div>
 </template>
 
@@ -309,9 +322,33 @@ onMounted(load)
   color: var(--zg-text-secondary);
   font-size: 16px;
 }
+.cat-search-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 820px;
+}
 .cat-search {
-  width: 100%;
-  max-width: 640px;
+  flex: 1;
+  min-width: 0;
+}
+.cat-ask-btn {
+  flex-shrink: 0;
+  border-color: var(--el-color-primary-light-5);
+  color: var(--el-color-primary);
+  background: rgba(64, 128, 255, 0.06);
+}
+.cat-ask-spark {
+  margin-right: 2px;
+}
+@media (max-width: 720px) {
+  .cat-search-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .cat-ask-btn {
+    width: 100%;
+  }
 }
 .cat-content {
   padding-top: 24px;
