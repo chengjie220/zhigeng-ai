@@ -15,8 +15,11 @@ const buckets = computed(() => bucketByDeadline(props.notices, props.limit ?? 5)
 <template>
   <section v-if="buckets.length" class="time-board">
     <div class="time-board-head">
-      <h2>按时间看</h2>
-      <p>快到期的排在前面，别让机会溜走</p>
+      <div>
+        <h2>按时间看</h2>
+        <p>快到期的排在前面，别让机会溜走</p>
+      </div>
+      <router-link to="/week" class="time-board-more">翻开本周日历 →</router-link>
     </div>
     <div class="time-grid">
       <div v-for="bucket in buckets" :key="bucket.key" class="time-col" :class="bucket.tone">
@@ -45,8 +48,19 @@ const buckets = computed(() => bucketByDeadline(props.notices, props.limit ?? 5)
 .time-board-head {
   display: flex;
   align-items: baseline;
+  justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+.time-board-more {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #2e7d60;
+  text-decoration: none;
+}
+.time-board-more:hover {
+  text-decoration: underline;
 }
 .time-board-head h2 {
   margin: 0;

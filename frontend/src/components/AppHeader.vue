@@ -38,6 +38,9 @@ function closeMenu() {
         <router-link to="/notices" :class="{ active: route.path === '/notices' }" @click="closeMenu">
           全部通知
         </router-link>
+        <router-link to="/week" :class="{ active: route.path === '/week' }" @click="closeMenu">
+          本周日历
+        </router-link>
         <router-link to="/favorites" :class="{ active: route.path === '/favorites' }" @click="closeMenu">
           我的收藏
         </router-link>

@@ -22,6 +22,12 @@ const router = createRouter({
       meta: { title: '全部通知' },
     },
     {
+      path: '/week',
+      name: 'week-calendar',
+      component: () => import('@/views/WeekCalendarView.vue'),
+      meta: { title: '本周日历' },
+    },
+    {
       path: '/notice/:id',
       name: 'notice-detail',
       component: () => import('@/views/NoticeDetail.vue'),

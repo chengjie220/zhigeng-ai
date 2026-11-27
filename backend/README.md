@@ -65,6 +65,17 @@ python -m pytest tests/ -q
 
 ### 「问知更」AI 问答
 
+### 周视图日历
+
+`GET /api/v1/calendar?start=2026-11-25`：返回该日期所在周（周一–周日）的全部时间点。
+
+- **截止事件**：`deadline_date` 落在区间内，`kind=deadline`，`label=截止`，带 `deadline_time`
+- **发生事件**：`extra_json` 里 `考试时间 / 活动时间 / 举办时间 / 考核时间 / 公示期` 等字段能被
+  `parse_cn_date` 解析出日期时，`kind=event`，`label` 保留原文用词。
+  这些字段目前只有配置 LLM Key 后才会产出，规则解析通常为空——**空就是空，不推测日期**
+- **去重**：同一通知被多来源转载时，同一天只留一条（`text_utils.dedupe_key` 归一化标题）
+- 可选 `end=YYYY-MM-DD` 把区间延长到该日期
+
 `GET /api/v1/qa?q=这周有什么比赛能报名`：把自然语言问题变成「结论 + 原文依据」。
 
 实现（`app/services/qa.py`）：

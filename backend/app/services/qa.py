@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from app.models import Notice, Source
 from app.schemas.qa import QACitation, QAResponse
 from app.services.ai_client import _AUDIENCE_RULES, _CATEGORY_RULES, _normalize, llm_chat
+from app.services.text_utils import dedupe_key
 
 # ---------------- 问题意图解析 ----------------
 
@@ -181,19 +182,12 @@ def _snippet_for(notice: Notice, question: str) -> str | None:
     return best[:120]
 
 
-def _dedupe_key(title: str) -> str:
-    """同一通知常被多个来源转载：去掉【栏目】前缀与「-学院/部门」后缀后比较。"""
-    t = re.sub(r"[【\[（(][^】\]）)]{0,12}[】\]）)]", "", title or "")
-    core = re.split(r"[-－—_|]", t)[0]
-    return re.sub(r"[\s·、，,。.：:;；!！?？\"'《》<>]", "", core)[:40]
-
-
 def _dedupe_rows(rows: list[tuple[Notice, str]]) -> list[tuple[Notice, str]]:
     """同一通知被多个来源转载时只保留第一条（顺序已按截止优先）。"""
     out: list[tuple[Notice, str]] = []
     seen: set[str] = set()
     for row in rows:
-        key = _dedupe_key(row[0].title)
+        key = dedupe_key(row[0].title)
         if key and key in seen:
             continue
         seen.add(key)
@@ -207,7 +201,7 @@ def _build_citations(rows: list[tuple[Notice, str]], question: str) -> list[QACi
     for notice, _ in rows:
         if len(citations) >= _ANSWER_MAX_CITATIONS:
             break
-        key = _dedupe_key(notice.title)
+        key = dedupe_key(notice.title)
         if key and key in seen:
             continue
         snip = _snippet_for(notice, question)
