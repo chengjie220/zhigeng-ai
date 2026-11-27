@@ -55,6 +55,14 @@ def test_notices_list_shape(client):
         assert key in item
 
 
+def test_notices_page_size_200_allowed(client):
+    """前端分组首页一次拉 page_size=200 做聚合，必须放行（回归：曾被 le=50 拒成 422）。"""
+    resp = client.get("/api/v1/notices", params={"page_size": 200, "sort": "published"})
+    assert resp.status_code == 200
+    resp2 = client.get("/api/v1/notices", params={"page_size": 200, "deadline_status": "urgent"})
+    assert resp2.status_code == 200
+
+
 def test_notices_filter_by_keyword_and_category(client):
     _seed_notice(title="数学建模竞赛通知", category="竞赛", original_url="https://example.com/2")
     _seed_notice(title="志愿服务招募", category="实践", original_url="https://example.com/3")

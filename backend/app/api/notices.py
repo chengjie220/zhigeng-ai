@@ -73,7 +73,7 @@ def list_notices(
     deadline_status: str = Query("all", pattern="^(all|urgent|upcoming|expired|unknown)$"),
     sort: str = Query("deadline", pattern="^(deadline|published)$"),
     page: int = Query(1, ge=1),
-    page_size: int = Query(10, ge=1, le=50),
+    page_size: int = Query(10, ge=1, le=500),
     db: Session = Depends(get_db),
 ):
     today, week = _today_bounds()
