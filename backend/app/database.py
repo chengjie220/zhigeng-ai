@@ -13,7 +13,10 @@ class Base(DeclarativeBase):
 
 def _make_engine():
     url = get_settings().database_url
-    connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
+    # SQLite 默认遇到写锁会立刻报错；给 15s 等待，避免部署重启时两个实例抢锁直接崩
+    connect_args = (
+        {"check_same_thread": False, "timeout": 15} if url.startswith("sqlite") else {}
+    )
     return create_engine(url, connect_args=connect_args)
 
 

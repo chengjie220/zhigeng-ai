@@ -19,11 +19,14 @@ from app.database import init_db
 STATIC_DIR = Path(__file__).resolve().parent.parent / "static"
 
 
-def _sync_loop() -> None:
+def _sync_loop(delay: float = 0) -> None:
     """后台定时同步：启动后立即采集一轮，之后按 sync_interval_hours 周期执行。"""
     from app.database import SessionLocal
     from app.services.sync import sync_all
 
+    # 部署环境要求端口在 60s 内可用：先让服务空转一会儿，别和健康检查抢 CPU/网络
+    if delay > 0:
+        time.sleep(delay)
     interval = get_settings().sync_interval_hours * 3600
     while True:
         try:
@@ -41,9 +44,13 @@ def _sync_loop() -> None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    init_db()
+    # 建表/补列失败也不该让整个服务起不来：先把端口占住，接口再报错才可诊断
+    try:
+        init_db()
+    except Exception as exc:  # noqa: BLE001
+        print(f"[startup] init_db failed: {exc}")
     if get_settings().sync_interval_hours > 0:
-        threading.Thread(target=_sync_loop, daemon=True, name="zhigeng-sync").start()
+        threading.Thread(target=_sync_loop, args=(20,), daemon=True, name="zhigeng-sync").start()
     yield
 
 
