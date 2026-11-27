@@ -58,21 +58,18 @@ class BaseCrawler:
 
     def fetch(self, url: str) -> str:
         """抓取单页。网络异常直接抛出，由 sync 层记录，不自动重试。"""
+        from app.services.http_util import get as http_get
+
         self._throttle()
-        with httpx.Client(
-            timeout=self.timeout,
-            headers={"User-Agent": USER_AGENT},
-            follow_redirects=True,
-        ) as client:
-            resp = client.get(url)
-            resp.raise_for_status()
-            # 校园站点常见 GBK/UTF-8 混用，httpx 自动识别失败时按 utf-8 容错
-            if resp.encoding and resp.encoding.lower() not in ("utf-8", "utf8"):
-                try:
-                    return resp.content.decode(resp.encoding)
-                except (UnicodeDecodeError, LookupError):
-                    return resp.content.decode("utf-8", errors="ignore")
-            return resp.text
+        resp = http_get(url, self.timeout)
+        resp.raise_for_status()
+        # 校园站点常见 GBK/UTF-8 混用，httpx 自动识别失败时按 utf-8 容错
+        if resp.encoding and resp.encoding.lower() not in ("utf-8", "utf8"):
+            try:
+                return resp.content.decode(resp.encoding)
+            except (UnicodeDecodeError, LookupError):
+                return resp.content.decode("utf-8", errors="ignore")
+        return resp.text
 
     # ---- 子类实现 ----
     def fetch_list(self) -> list[ListEntry]:

@@ -18,6 +18,8 @@ class Settings(BaseSettings):
 
     crawl_delay_seconds: float = 1.0
     crawl_timeout: float = 20.0
+    # 服务内置定时同步间隔（小时）；<=0 表示关闭自动同步
+    sync_interval_hours: float = 6.0
 
     # 允许的来源站点（防止任意 URL 采集）
     allowed_hosts: str = "www.cdu.edu.cn,news.cdu.edu.cn,cxcyxy.cdu.edu.cn,tuanwei.cdu.edu.cn"

@@ -35,13 +35,10 @@ def search_sites(keyword: str) -> list[dict[str, str]]:
 
     for endpoint in ("https://cn.bing.com/search", "https://www.bing.com/search"):
         try:
-            with httpx.Client(
-                timeout=settings.crawl_timeout,
-                headers={"User-Agent": USER_AGENT},
-                follow_redirects=True,
-            ) as client:
-                resp = client.get(endpoint, params={"q": query})
-                resp.raise_for_status()
+            from app.services.http_util import get as http_get
+
+            resp = http_get(endpoint, settings.crawl_timeout, params={"q": query})
+            resp.raise_for_status()
             soup = BeautifulSoup(resp.text, "lxml")
             for li in soup.select("li.b_algo"):
                 a = li.select_one("h2 a[href]")
@@ -87,14 +84,11 @@ def probe_url(url: str) -> dict:
 
     settings = get_settings()
     try:
-        with httpx.Client(
-            timeout=settings.crawl_timeout,
-            headers={"User-Agent": USER_AGENT},
-            follow_redirects=True,
-        ) as client:
-            resp = client.get(url)
-            resp.raise_for_status()
-            html = resp.text
+        from app.services.http_util import get as http_get
+
+        resp = http_get(url, settings.crawl_timeout)
+        resp.raise_for_status()
+        html = resp.text
     except httpx.HTTPError as exc:
         return {
             "ok": False,
